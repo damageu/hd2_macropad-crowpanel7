@@ -4,6 +4,10 @@
 
 #define AUDIO_BUFFER 2048
 
+#ifdef BOARD_CROWPANEL_ADV7
+extern void bsp_audio_amp(bool on);
+#endif
+
 static const char *TAG = "I2S Audio Player";
 
 i2s_chan_handle_t tx_handle;
@@ -34,6 +38,11 @@ esp_err_t i2s_setup(void)
             },
         },
     };
+#ifdef BOARD_CROWPANEL_ADV7
+    // The NS4168 on the CrowPanel listens on the right slot; mono mode defaults to the
+    // left slot only, so send the same sample on both.
+    std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_BOTH;
+#endif
     return i2s_channel_init_std_mode(tx_handle, &std_cfg);
 }
 
@@ -51,7 +60,9 @@ esp_err_t play_wav(char *fp)
     {
         ESP_LOGE(TAG, "(%s) FS open failed.", fp);
         lv_fs_close(&f);
+#ifndef BOARD_CROWPANEL_ADV7
         i2s_playbackError = true;
+#endif
         return ESP_FAIL;
     }
     ESP_LOGI(TAG, "(%s) FS opened.", fp);
@@ -85,6 +96,9 @@ esp_err_t play_wav(char *fp)
 
     i2s_setup();
     i2s_channel_enable(tx_handle);
+#ifdef BOARD_CROWPANEL_ADV7
+    bsp_audio_amp(true);
+#endif
 
     while (bytes_read > 0)
     {
@@ -93,6 +107,9 @@ esp_err_t play_wav(char *fp)
         lv_fs_read(&f, buf, AUDIO_BUFFER, &bytes_read);
     }
 
+#ifdef BOARD_CROWPANEL_ADV7
+    bsp_audio_amp(false);
+#endif
     i2s_channel_disable(tx_handle);
     i2s_del_channel(tx_handle);
     free(buf);

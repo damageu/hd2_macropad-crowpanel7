@@ -4,6 +4,17 @@
 
 A very flexible and easy-to-use macropad for HELLDIVERS&trade; 2 for live configuration on each drop into combat with individual loadouts.
 
+> [!IMPORTANT]
+> **CrowPanel Advance 7.0 fork.** This is Evan Ford's public fork of [Erik Lembke's HD2 Macropad](https://github.com/unic8s/hd2_macropad) (`unic8s/hd2_macropad`) for the Elecrow CrowPanel Advance 7.0 (DIS02170A). Setup, build, flash, update, and recovery: [docs/crowpanel/README.md](docs/crowpanel/README.md). Maintainer checklist: [docs/crowpanel/MAINTAINER.md](docs/crowpanel/MAINTAINER.md).
+>
+> The CrowPanel port and the notes in this fork are AI-assisted maintenance. They are not an official unic8s release. Erik Lembke remains the original author. The on-device About screen still credits Oliver G. (@Gore66) and Erik L. (@unic8s) and still links to `github.com/unic8s/hd2_macropad`.
+>
+> Licence: [CC BY-NC-SA 4.0](LICENSE.md).
+>
+> Donations stay with the original author. The Buy Me a Coffee button in the Support section below is Erik Lembke's existing link (`https://www.buymeacoffee.com/unic8`). `.github/FUNDING.yml` still names GitHub Sponsors `unic8s` and Buy Me a Coffee `unic8`. This fork does not add a donation, sponsor, or payment destination.
+>
+> The JC3248W535 note below is the upstream project's original target. Do not flash that board's install image onto the CrowPanel.
+
 > [!NOTE]
 > **The software requires this specific device [JC3248W535](https://s.click.aliexpress.com/e/_DneMCLR)**
 > 

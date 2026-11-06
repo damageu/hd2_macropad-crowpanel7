@@ -1,0 +1,7 @@
+# Historical checksums for the hardware-tested v1.8.6-cp7.2 artifacts.
+# Those files are not in this repository. Do not treat a build of this
+# branch as a match for these hashes. See docs/crowpanel/README.md.
+edf46ae04503e88228de06d18203370645b33b509cf985ecd63137a4f0df2436  hd2_macropad_v1.8.6-cp7.2_crowpanel_adv7_0x0.bin
+1ebf4ad03be4222444dbedfad27027898d9d22ca6ef0329216508a2a039b7028  hd2_macropad_v1.8.6-cp7.2_app_0x10000.bin
+d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10  assets_fat_0xa10000.img
+28702e8f4c0fcca7844e4bd5ec9754421629e32468769481a3cfca8d3b7de163  HD2MacropadLink-v1.1.exe

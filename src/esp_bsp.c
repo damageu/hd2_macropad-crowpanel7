@@ -1,3 +1,4 @@
+#ifndef BOARD_CROWPANEL_ADV7
 /*
  * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
  *
@@ -537,3 +538,5 @@ void bsp_display_unlock(void)
 {
     lvgl_port_unlock();
 }
+
+#endif /* !BOARD_CROWPANEL_ADV7 */

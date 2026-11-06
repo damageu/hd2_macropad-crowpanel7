@@ -29,6 +29,12 @@ extern esp_err_t usb_controller_init();
 extern esp_err_t usb_controller_deinit();
 
 #define CFG_KEY_DELAY "delay"
+
+#ifdef BOARD_CROWPANEL_ADV7
+#define DEFAULT_INPUT_DELAY 50
+#else
+#define DEFAULT_INPUT_DELAY 100
+#endif
 #define CFG_KEY_ROTATION "rotation"
 #define CFG_KEY_BRIGHTNESS "brightness"
 #define CFG_KEY_MUTED "muted"
@@ -52,7 +58,25 @@ esp_err_t initConfig()
     }
     ESP_ERROR_CHECK(ret);
 
+#ifdef BOARD_CROWPANEL_ADV7
+    // CrowPanel Advance 7: the SD card shares its pins with the speaker (DIP mux), so the
+    // sound assets live in a read-only FAT partition in flash, mounted as FatFs drive 0
+    // exactly where the SD card would be. Missing assets only mute sounds, never block boot.
+    {
+        const esp_vfs_fat_mount_config_t assets_cfg = {
+            .format_if_mount_failed = false,
+            .max_files = 5,
+            .allocation_unit_size = 0,
+        };
+        esp_err_t aret = esp_vfs_fat_spiflash_mount_ro(MOUNT_POINT, "assets", &assets_cfg);
+        if (aret != ESP_OK)
+        {
+            ESP_LOGE("CONFIG", "Asset partition mount failed (%s), sounds disabled", esp_err_to_name(aret));
+        }
+    }
+#else
     ESP_ERROR_CHECK(init_sdcard());
+#endif
     lv_fs_fatfs_init();
 
     return ret;
@@ -161,10 +185,10 @@ void setDelay(int delay, bool restore)
 {
     inputDelay = delay;
 
-    char *textDelay = (char *)malloc(7 * sizeof(char));
-    sprintf(textDelay, "%d %s", delay, " ms");
+    char textDelay[16];
+    snprintf(textDelay, sizeof(textDelay), "%d %s", delay, " ms");
 
-    lv_label_set_text(objects.lbl_delay, (void *)textDelay);
+    lv_label_set_text(objects.lbl_delay, textDelay);
 
     if (restore)
     {
@@ -212,10 +236,10 @@ void setBrightness(int brightness, bool restore)
 {
     dimScreen(brightness);
 
-    char *textBrightness = (char *)malloc(5 * sizeof(char));
-    sprintf(textBrightness, "%d %s", brightness, " %");
+    char textBrightness[16];
+    snprintf(textBrightness, sizeof(textBrightness), "%d %s", brightness, " %");
 
-    lv_label_set_text(objects.lbl_brightness, (void *)textBrightness);
+    lv_label_set_text(objects.lbl_brightness, textBrightness);
 
     if (restore)
     {
@@ -468,7 +492,7 @@ void loadConfig()
         return;
     }
 
-    uint8_t delay = getConfig(CFG_KEY_DELAY, 100);
+    uint8_t delay = getConfig(CFG_KEY_DELAY, DEFAULT_INPUT_DELAY);
     setDelay(delay, true);
 
     uint8_t rotation = getConfig(CFG_KEY_ROTATION, 100);
@@ -557,7 +581,7 @@ void resetConfig()
 
     closeConfig();
 
-    setDelay(100, true);
+    setDelay(DEFAULT_INPUT_DELAY, true);
     setBrightness(50, true);
     setMuted(0, true);
     setTrigger(0, true);

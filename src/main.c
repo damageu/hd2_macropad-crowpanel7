@@ -36,6 +36,10 @@ bool lvglReady = false;
 uint8_t stratagemCode[MAX_CMD_LENGTH];
 // Stratagem mask for modifier key combination (ctrl, alt, etc.)
 uint8_t stratagemMask;
+#ifdef BOARD_CROWPANEL_ADV7
+// cp7.2: set while hid_input_task is sending a sequence
+static volatile bool hidBusy = false;
+#endif
 
 // Flag for sound playback state
 bool soundPlayback = false;
@@ -75,7 +79,13 @@ void setStratagemCode(uint8_t sequence[MAX_CMD_LENGTH], uint8_t mask, bool plain
     }
     break;
   case CT_USB:
+#ifdef BOARD_CROWPANEL_ADV7
+    /* cp7.2: don't silently drop a press because one PING was late. If the Link app isn't
+     * there the frames just go nowhere, which is harmless. */
+    if (!usb_link_active())
+#else
     if (!usb_connected())
+#endif
     {
       return;
     }
@@ -84,6 +94,26 @@ void setStratagemCode(uint8_t sequence[MAX_CMD_LENGTH], uint8_t mask, bool plain
     return;
   }
 
+#ifdef BOARD_CROWPANEL_ADV7
+  /* cp7.2: hid_input_task starts as soon as stratagemCode[0] != 0, so publish the mask and
+   * the tail of the sequence first and stratagemCode[0] last (was: [0] first, mask last). */
+  uint8_t tmp[MAX_CMD_LENGTH] = {0};
+  for (uint8_t c = 0; c < MAX_CMD_LENGTH && sequence[c] > 0; c++)
+  {
+    tmp[c] = plain ? sequence[c] : LookupKeycode(sequence[c]);
+  }
+  if (hidBusy || stratagemCode[0] > 0 || tmp[0] == 0)
+  {
+    return; /* previous command still running: don't splice two sequences together */
+  }
+  stratagemMask = mask;
+  for (uint8_t c = 1; c < MAX_CMD_LENGTH; c++)
+  {
+    stratagemCode[c] = tmp[c];
+  }
+  __sync_synchronize();
+  stratagemCode[0] = tmp[0];
+#else
   uint8_t sequenceLength = 0;
 
   for (uint8_t c = 0; c < MAX_CMD_LENGTH; c++)
@@ -101,6 +131,7 @@ void setStratagemCode(uint8_t sequence[MAX_CMD_LENGTH], uint8_t mask, bool plain
   }
 
   stratagemMask = mask;
+#endif
 }
 
 // Playback sound file from specified path
@@ -161,7 +192,33 @@ void updateConnection()
 }
 
 // Delay for checking if a the stratagem execution buffer is filled
+#ifdef BOARD_CROWPANEL_ADV7
+#define INPUT_CHECK_DELAY 10
+// cp7.2: minimum time between the modifier (Ctrl) going down and the first direction key,
+// so the in-game stratagem list is open before the first arrow arrives
+#define MODIFIER_LEAD_MS 80
+#else
 #define INPUT_CHECK_DELAY 50
+#endif
+
+#ifdef BOARD_CROWPANEL_ADV7
+// cp7.2: sounds play in their own task so a voice line can't hold up or swallow key input
+static void sound_task(void *pvParameters)
+{
+  while (1)
+  {
+    vTaskDelay(20 / portTICK_PERIOD_MS);
+    if (soundPlayback && lvglReady)
+    {
+      soundPlayback = false;
+      if (!playerMuted)
+      {
+        play_wav(soundFile);
+      }
+    }
+  }
+}
+#endif
 
 // Task for exeuction of HID inputs
 void hid_input_task(void *pvParameters)
@@ -173,6 +230,9 @@ void hid_input_task(void *pvParameters)
     if (stratagemCode[0] > 0)
     {
       ESP_LOGI(TAG, "Send command");
+#ifdef BOARD_CROWPANEL_ADV7
+      hidBusy = true;
+#endif
 
       uint8_t cmdIndex = 0;
 
@@ -196,7 +256,11 @@ void hid_input_task(void *pvParameters)
       // Send modifier keys (mask)
       fptr(stratagemMask, 0, 0);
 
+#ifdef BOARD_CROWPANEL_ADV7
+      vTaskDelay((stratagemMask && inputDelay < MODIFIER_LEAD_MS) ? pdMS_TO_TICKS(MODIFIER_LEAD_MS) : inputDelayPeriod);
+#else
       vTaskDelay(inputDelayPeriod);
+#endif
 
       // Loop through command sequence from buffer
       while (stratagemCode[cmdIndex] > 0 && cmdIndex < MAX_CMD_LENGTH)
@@ -219,10 +283,14 @@ void hid_input_task(void *pvParameters)
       }
 
       fptr(0, 0, 0);
+#ifdef BOARD_CROWPANEL_ADV7
+      hidBusy = false;
+#endif
 
       ESP_LOGI(TAG, "Finish command");
     }
 
+#ifndef BOARD_CROWPANEL_ADV7
     // Check if a sound playback is ongoing
     if (soundPlayback && lvglReady)
     {
@@ -234,6 +302,7 @@ void hid_input_task(void *pvParameters)
         play_wav(soundFile);
       }
     }
+#endif
   }
 }
 
@@ -278,10 +347,10 @@ void ui_update_task()
         sec -= 60;
       }
 
-      char *textCooldown = (char *)malloc(8 * sizeof(char));
-      sprintf(textCooldown, "%d:%02d", min, sec);
+      char textCooldown[12];
+      snprintf(textCooldown, sizeof(textCooldown), "%d:%02d", min, sec);
 
-      lv_label_set_text(cooldownLabel, (void *)textCooldown);
+      lv_label_set_text(cooldownLabel, textCooldown);
 
       if (lv_obj_has_flag(cooldownLabel, LV_OBJ_FLAG_HIDDEN))
       {
@@ -312,6 +381,9 @@ void app_main()
 
   // Setup HID input task (async)
   xTaskCreatePinnedToCore(&hid_input_task, "hid_input_task", 2048, NULL, 5, NULL, 0);
+#ifdef BOARD_CROWPANEL_ADV7
+  xTaskCreatePinnedToCore(&sound_task, "sound_task", 4096, NULL, 4, NULL, 0);
+#endif
 
   // Resolve screen rotation from config
   screenRotation = peekConfig("rotation", LV_DISP_ROT_90);
