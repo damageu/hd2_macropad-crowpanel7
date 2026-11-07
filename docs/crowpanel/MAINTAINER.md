@@ -61,6 +61,16 @@ Do not add `damageu`, Evan, a bot account, a new Buy Me a Coffee username, PayPa
 
 The AGG comments under `libraries/eez-framework/` that say "sponsored by" are third-party source. Leave them.
 
+## Firmware updater
+
+The Link app stable channel only accepts a public GitHub release whose tag is `vX.Y.Z-cp7.N` and whose assets include `crowpanel-update.json` at:
+
+`https://github.com/damageu/hd2_macropad-crowpanel7/releases/download/<tag>/crowpanel-update.json`
+
+The manifest `channel` must be `stable`, and `version` must equal that tag. The image file name is `hd2_macropad_<version>_app_0x10000.bin` in the same release. The manifest cannot set an address, a baud rate, or a command. Do not add those fields. A local file named `crowpanel-update.json` is accepted only when `channel` is `test`, from the separate tray item.
+
+Do not publish a release to exercise the button. The test package under `tools/crowpanel/test-package/` is the unreleased hardware-test path. Rebuild it with `python3 tools/crowpanel/make_test_package.py` after `pio run -e crowpanel-adv7`. The app descriptor version and `SW_VER` are both `v1.9.1-cp7.2` (`-DPROJECT_VER` on the CrowPanel board and `utils/write-version.py`).
+
 ## Release gate
 
 Do not do these from this fork until the physical test list in `docs/crowpanel/README.md` has passed on the commit you would ship:

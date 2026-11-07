@@ -45,7 +45,27 @@ The original JC3248W535 image from upstream must not be flashed onto this panel.
 
 Sounds live in a read-only FAT partition named `assets` at `0xA10000` (4 MB), because the SD slot shares pins with the speaker. Missing sounds mute playback. They do not stop the rest of the firmware from booting.
 
-## HD2 Macropad Link v1.1
+## First-time setup
+
+1. Build or use `HD2MacropadLink-v1.2.exe` from `link/BUILD.txt`. Put it somewhere you can leave it. The app starts with Windows the first time you run it. The tray menu can turn that off.
+2. Plug the CrowPanel USB-C cable into the PC. Windows shows a CH340 COM port. You do not type the COM number. If more than one CH340 is plugged in, unplug the others before an update.
+3. On the macropad, open Config and set Connectivity to USB. The tray icon should say it is connected. The link stays at 115200 baud.
+4. This firmware is not a published release yet. Use the tray menu **Install local test package...** and open `tools/crowpanel/test-package/crowpanel-update.json`. The window says LOCAL TEST PACKAGE. Press **Update** only when you are not in a mission. **Check board only** restarts the macropad and does not write.
+5. The app backs up the current application under `%LOCALAPPDATA%\HD2MacropadLink\backups\`, writes the new app at `0x10000`, reads it back, and reconnects. Presets stay in NVS. After it finishes, About should show `v1.9.1-cp7.2`.
+
+The batch scripts in `tools/crowpanel/` are the recovery path if the screen stays blank. They are not required for a normal update.
+
+## Later updates
+
+When a stable GitHub release exists, the tray menu **Check for firmware update...** reads the public release list for `damageu/hd2_macropad-crowpanel7` with no token. It shows the version and the notes. Nothing is written until you press **Update**. It will not downgrade, it will not erase the chip, and it ignores draft and prerelease releases.
+
+Until that release exists, the check says that no stable package is published. That is expected. Do not publish a release just to make the button light up. The local test package is the path for this first hardware run.
+
+The updater does not download or start a new copy of itself. Replacing HD2 Macropad Link later means installing a new exe you built or that a release explicitly documents. This version does not do that for you.
+
+A USB unplug or a power loss while the write is in progress is not an atomic update. The backup file on the PC is the recovery image. The app will try to write that previous app back if the new image does not read back, but only while the serial port is still open. It does not promise it can recover every failure.
+
+## HD2 Macropad Link v1.2
 
 Source and build steps: `link/BUILD.txt`.
 
@@ -53,7 +73,7 @@ The app finds a CH340 serial port, answers PINGs, and turns keyboard frames into
 
 The protocol baud rate is 115200. That number is not the esptool flash baud. Do not "speed up" the link by changing either side away from 115200.
 
-Close the Link app before backup, update, or flash. It holds the COM port. The scripts close `HD2MacropadLink.exe` and `HD2MacropadLink-v1.1.exe` and no other processes.
+Close the Link app before a manual backup, update, or flash. It holds the COM port. The scripts close `HD2MacropadLink.exe`, `HD2MacropadLink-v1.1.exe`, and `HD2MacropadLink-v1.2.exe`, and no other processes. The in-app updater pauses its own serial connection instead.
 
 An optional log is off unless you set `HKCU\Software\HD2MacropadLink` value `Log` (DWORD) to 1. The file is under `%LOCALAPPDATA%\HD2MacropadLink\link.log`.
 

@@ -1,28 +1,32 @@
-HD2 Macropad Link v1.1
+HD2 Macropad Link v1.2
 =======================
 
-Windows tray app for the CrowPanel Advance 7.0 USB-serial link.
-Protocol UART rate: 115200. Do not change that to the esptool flash baud.
+Windows tray app for the CrowPanel Advance 7.0 USB-serial link, plus an
+explicit firmware update button. Protocol UART rate: 115200. The updater's
+bootloader baud is at most 460800. Those are different settings.
 
-The firmware side lives in the repository root, environment crowpanel-adv7.
-See docs/crowpanel/README.md. Close this app before flashing the board.
+The updater does not replace this exe. A future Link update is a new build
+of these sources, installed by hand. It does not download or run a new exe.
 
 Build (MinGW-w64, from this directory):
 
     x86_64-w64-mingw32-windres res.rc -O coff -o res.o
-    x86_64-w64-mingw32-gcc -O2 -municode -mwindows hd2link.c res.o -o HD2MacropadLink-v1.1.exe -lsetupapi -lwinmm -static
+    x86_64-w64-mingw32-gcc -Wall -Wextra -O2 -municode -mwindows ^
+      hd2link.c updater_win.c romflash.c update_core.c sha256.c res.o ^
+      -o HD2MacropadLink-v1.2.exe -lsetupapi -lwinmm -lwinhttp -lcomdlg32 -static
 
-Linux unit test (parser and scancode map only; no Windows APIs):
+Linux tests (no Windows APIs, no serial hardware):
 
-    gcc -Wall -Wextra -O2 -o test_core test_core.c && ./test_core
+    gcc -Wall -Wextra -Werror -O2 -o test_core test_core.c && ./test_core
+    gcc -Wall -Wextra -Werror -O2 -o test_update test_update.c update_core.c sha256.c && ./test_update
+    gcc -Wall -Wextra -Werror -O2 -o test_romflash test_romflash.c romflash.c update_core.c sha256.c && ./test_romflash
 
-The previously tested executable was named HD2MacropadLink-v1.1.exe.
-Its resource version was 1.0.0 because res.rc had not been bumped.
-This tree's res.rc says 1.1.0 so a rebuild is identifiable.
-A rebuild will not match the old executable's checksum.
+The v1.1 executable checksum 28702e8f... does not apply to this build.
+This tree's resource version is 1.2.0. Pacing is unchanged: 30 ms hold, 8 ms gap.
 
 Optional diagnostic log, off unless this registry value is set:
 
     reg add HKCU\Software\HD2MacropadLink /v Log /t REG_DWORD /d 1
 
 The log is written under %LOCALAPPDATA%\HD2MacropadLink\link.log.
+Firmware backups are written under %LOCALAPPDATA%\HD2MacropadLink\backups\.

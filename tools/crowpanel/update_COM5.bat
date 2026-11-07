@@ -35,6 +35,7 @@ echo.
 echo === Closing HD2 Macropad Link so %PORT% is free ===
 taskkill /im HD2MacropadLink.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.1.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.exe /f >nul 2>&1
 timeout /t 2 /nobreak >nul
 
 echo.
