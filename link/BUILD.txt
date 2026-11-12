@@ -1,10 +1,11 @@
-HD2 Macropad Link v1.2.4
+HD2 Macropad Link v1.2.5
 ========================
 
 Windows tray app and first-install program for the CrowPanel Advance 7.0
 USB-serial link. The updater core is v1.2.3 (flasher stub, compressed writes,
-MD5 verify, ROM fallback, headless CLI). v1.2.4 adds the stock-board install
-window in the same exe. Protocol UART rate: 115200. The updater's bootloader
+MD5 verify, ROM fallback, headless CLI). v1.2.4 added the stock-board install
+window. v1.2.5 is that program plus the 4 MB sound partition, so the two
+exes stay distinguishable. Protocol UART rate: 115200. The updater's bootloader
 baud is at most 460800 (never 921600: it corrupts on the CrowPanel's CH340K).
 Those are different settings.
 
@@ -21,7 +22,7 @@ Build (llvm-mingw or MinGW-w64, from this directory; build.sh does all of it):
       -DMINIZ_NO_STDIO -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_TIME -DMINIZ_NO_ZLIB_COMPATIBLE_NAMES ^
       -municode -mwindows ^
       hd2link.c updater_win.c install_win.c romflash.c update_core.c sha256.c md5.c miniz.o res.o ^
-      -o HD2MacropadLink-v1.2.4.exe -lsetupapi -lwinmm -lwinhttp -lcomdlg32 -lshell32 -static
+      -o HD2MacropadLink-v1.2.5.exe -lsetupapi -lwinmm -lwinhttp -lcomdlg32 -lshell32 -static
 
 Linux tests (no Windows APIs, no serial hardware):
 
@@ -48,9 +49,9 @@ Regenerating the stub header (only when moving to a newer stub release):
 
     python3 gen_stub.py third_party/esp-flasher-stub/esp32s3.json > stub_esp32s3.h
 
-The Windows program is HD2MacropadLink-v1.2.4.exe. v1.2.4 is the v1.2.3
+The Windows program is HD2MacropadLink-v1.2.5.exe. v1.2.5 is the v1.2.3
 updater plus a first-install window in the same file. The resource version
-is 1.2.4. Link pacing is unchanged: 30 ms hold, 8 ms gap. Flash baud is still
+is 1.2.5. Link pacing is unchanged: 30 ms hold, 8 ms gap. Flash baud is still
 at most 460800.
 
 v1.2.3 updater (fast path):
@@ -81,20 +82,22 @@ Registry switches (HKCU\Software\HD2MacropadLink, REG_DWORD, default 0):
     Log=1         diagnostic link.log (unchanged)
 
 Headless CLI (no dialogs):
-    HD2MacropadLink-v1.2.4.exe --update <crowpanel-update.json> --port COM5 [--reinstall] --yes
+    HD2MacropadLink-v1.2.5.exe --update <crowpanel-update.json> --port COM5 [--reinstall] --yes
         [--log-stdout] [--full-backup] [--rom-only] [--dry-run] [--result-file <path>]
-    HD2MacropadLink-v1.2.4.exe --probe --port COM5 [--log-stdout] [--rom-only] [--result-file <path>]
-    HD2MacropadLink-v1.2.4.exe --install [--port COMn] --yes
+    HD2MacropadLink-v1.2.5.exe --probe --port COM5 [--log-stdout] [--rom-only] [--result-file <path>]
+    HD2MacropadLink-v1.2.5.exe --install [--port COMn] --yes
         [--dry-run] [--log-stdout] [--rom-only] [--result-file <path>]
 Exit codes: 0 ok, 1 failed, 2 usage, 3 port busy or Link running, 4 bad package.
 
 --install is the stock-board first install. It reads 16 MB from address 0
-before it writes the bootloader (0x0), the partition table (0x8000), and the
-app (0x10000). It does not mass-erase and it does not write NVS. Omit --port
-when exactly one CH340 is plugged in. --yes is required to write. --dry-run
-only saves the 16 MB backup. Quit the tray app first.
+before it writes the bootloader (0x0), the partition table (0x8000), the
+app (0x10000), and the assets FAT (0xA10000, 4 MB, compressed). It does not
+mass-erase and it does not write NVS. Omit --port when exactly one CH340 is
+plugged in. --yes is required to write. --dry-run only saves the 16 MB backup.
+Quit the tray app first. The 16 MB backup plus the sound write takes several
+minutes. Do not run --install on a board that already runs HD2.
 
-The exe embeds three images from link/firmware/ and the tested app bin:
+The exe embeds these images:
     firmware/bootloader.bin     rebuilt from this tree's crowpanel-adv7
                                 sdkconfig (DIO, 80 MHz, 16 MB). The original
                                 bootloader bytes from the tested board were
@@ -103,7 +106,12 @@ The exe embeds three images from link/firmware/ and the tested app bin:
     ../tools/crowpanel/test-package/hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin
                                 MD5 b0f9ebf600521d2c1fc9fd884a5e34df
                                 SHA-256 c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63
-Do not replace that app bin with a later rebuild.
+    firmware/assets_fat_0xa10000.img
+                                4194304 bytes at 0xA10000
+                                MD5 56ad5746c2f2940c636553dcdcae383e
+                                SHA-256 d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10
+Do not replace the app bin or the assets image with a later rebuild.
+v1.2.4 is the previous exe and does not contain the sound partition.
 
 Each update writes a timestamped protocol log under
 %LOCALAPPDATA%\HD2MacropadLink\logs\update-<timestamp>.log.

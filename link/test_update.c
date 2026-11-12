@@ -127,6 +127,8 @@ int main(void)
         memcpy(table + 76, "assets", 6);
         table[95] = 0xFF;
         expect(upd_partition_is_cp7(table, sizeof table, err, sizeof err), err);
+        expect(UPD_ASSETS_OFFSET == 0xA10000u && UPD_ASSETS_SIZE == 0x400000u, "assets slot is 4 MiB at 0xA10000");
+        expect(!upd_range_is_app_slot(UPD_ASSETS_OFFSET, 0x400000u), "assets is not an app-only write");
         table[36] = 0x00; table[37] = 0x00; table[38] = 0x02;
         expect(!upd_partition_is_cp7(table, sizeof table, err, sizeof err), "wrong factory offset");
     }

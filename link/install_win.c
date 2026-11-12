@@ -19,6 +19,7 @@
 #include "update_core.h"
 #include "link_session.h"
 #include "sha256.h"
+#include "md5.h"
 
 extern const GUID GUID_DEVINTERFACE_COMPORT_LOCAL;
 
@@ -35,11 +36,14 @@ extern const GUID GUID_DEVINTERFACE_COMPORT_LOCAL;
 #define ID_BOOT     101
 #define ID_PART     102
 #define ID_APP      103
+#define ID_ASSETS   104
 
 #define FW_VER "v1.9.1-cp7.2"
 #define SHA_APP "c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63"
 #define SHA_PART "bdf044742fcec45de4d49e8062eb06096901498831e3641732e9be1ed8cb5a5e"
 #define SHA_BOOT "cdd4216c20e9ec2762286c17899a9fbe064147fbe73cdf24f7c14afd68772bba"
+#define SHA_ASSETS "d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10"
+#define MD5_ASSETS "56ad5746c2f2940c636553dcdcae383e"
 
 static const wchar_t *EXPLAIN =
     L"Install HD2 Macropad v1.9.1-cp7.2 on an Elecrow CrowPanel Advance 7.0 "
@@ -49,18 +53,17 @@ static const wchar_t *EXPLAIN =
     L"NVS presets and writes only the app.\r\n\r\n"
     L"Back up and install does four things. It finds the CH340 USB-serial port "
     L"(it does not assume COM5). It reads the entire 16 MB flash to a file on "
-    L"this PC before it changes the chip. On the maintainer's board a 2.4 MB app "
-    L"read at 460800 took 63 seconds, and that whole backup run was 93 seconds. "
-    L"The 16 MB read is the same reader, so this step usually takes several minutes. "
-    L"The status line shows how far it has got. Baud is 460800. 921600 is never used.\r\n\r\n"
-    L"It then writes only the bootloader at 0x0, the cp7 partition table at 0x8000, "
-    L"and the app at 0x10000. It does not mass-erase the chip. It does not write "
-    L"NVS at 0x9000, phy_init at 0xF000, or the sound partition at 0xA10000. "
-    L"A stock board's NVS is not HD2 presets, and this installer leaves those bytes "
-    L"in place. A rollback writes the backup back over only the regions it changed, "
-    L"so it does not rewrite NVS either. After the board boots, open Config and set "
-    L"Connectivity to USB. Sounds stay silent on a stock board until the assets "
-    L"image is flashed from the advanced guide.\r\n\r\n"
+    L"this PC before it changes the chip. That read, and the sound partition "
+    L"written after it, take several minutes. The status line shows how far it "
+    L"has got. Baud is 460800. 921600 is never used.\r\n\r\n"
+    L"It then writes four regions only: the bootloader at 0x0, the cp7 partition "
+    L"table at 0x8000, the app at 0x10000, and the sound FAT at 0xA10000. "
+    L"It does not mass-erase the chip. It does not write NVS at 0x9000 or phy_init "
+    L"at 0xF000. A stock board's NVS is not HD2 presets, and this installer leaves "
+    L"those bytes in place. A rollback writes the backup back over every region it "
+    L"changed, including sounds, and does not rewrite NVS. After the board boots, "
+    L"open Config and set Connectivity to USB. To hear the sounds, use a PH2.0-2P "
+    L"speaker on the SPK header and set the DIP switches to S1=0 and S0=0.\r\n\r\n"
     L"If a step fails, this window keeps a log and can open a GitHub issue with a "
     L"short summary. Drag the log file onto that issue. Do not paste a home-folder path.";
 
@@ -82,7 +85,7 @@ typedef struct {
     int cli;
     int log_stdout;
     int rom_only;
-    rom_install_image images[3];
+    rom_install_image images[4];
     rom_install_result ir;
     rom_probe_result pr;
     bk_t bk;
@@ -102,8 +105,8 @@ struct inst_ui {
     int last_rc;
     volatile LONG cancel;
     inst_job job;
-    uint8_t *boot, *part, *app;
-    size_t boot_n, part_n, app_n;
+    uint8_t *boot, *part, *app, *assets;
+    size_t boot_n, part_n, app_n, assets_n;
     int package_ok;
     char package_err[200];
 };
@@ -205,6 +208,16 @@ static int hash_ok(const uint8_t *p, size_t n, const char *want, char *err, size
     return 1;
 }
 
+static int md5_hex_is(const uint8_t *p, size_t n, const char *want)
+{
+    uint8_t d[16];
+    char hex[33];
+    int i;
+    md5_buf(p, n, d);
+    for (i = 0; i < 16; i++) snprintf(hex + i * 2, 3, "%02x", d[i]);
+    return _stricmp(hex, want) == 0;
+}
+
 static int package_ok(inst_ui *ui)
 {
     char ver[32];
@@ -212,11 +225,13 @@ static int package_ok(inst_ui *ui)
     ui->package_err[0] = 0;
     if (!load_rc(ID_BOOT, &ui->boot, &ui->boot_n, ui->package_err, sizeof ui->package_err) ||
         !load_rc(ID_PART, &ui->part, &ui->part_n, ui->package_err, sizeof ui->package_err) ||
-        !load_rc(ID_APP, &ui->app, &ui->app_n, ui->package_err, sizeof ui->package_err))
+        !load_rc(ID_APP, &ui->app, &ui->app_n, ui->package_err, sizeof ui->package_err) ||
+        !load_rc(ID_ASSETS, &ui->assets, &ui->assets_n, ui->package_err, sizeof ui->package_err))
         return 0;
     if (!hash_ok(ui->boot, ui->boot_n, SHA_BOOT, ui->package_err, sizeof ui->package_err, "bootloader") ||
         !hash_ok(ui->part, ui->part_n, SHA_PART, ui->package_err, sizeof ui->package_err, "partition table") ||
-        !hash_ok(ui->app, ui->app_n, SHA_APP, ui->package_err, sizeof ui->package_err, "app"))
+        !hash_ok(ui->app, ui->app_n, SHA_APP, ui->package_err, sizeof ui->package_err, "app") ||
+        !hash_ok(ui->assets, ui->assets_n, SHA_ASSETS, ui->package_err, sizeof ui->package_err, "assets"))
         return 0;
     if (ui->boot[0] != 0xE9 || ui->boot[12] != 9 || ui->boot_n > 0x7000 ||
         !upd_image_length(ui->boot, ui->boot_n, &total, ui->package_err, sizeof ui->package_err) ||
@@ -233,6 +248,10 @@ static int package_ok(inst_ui *ui)
         !upd_image_version(ui->app, ui->app_n, ver, sizeof ver, ui->package_err, sizeof ui->package_err) ||
         strcmp(ver, FW_VER) != 0) {
         if (!ui->package_err[0]) snprintf(ui->package_err, sizeof ui->package_err, "bundled app is not %s", FW_VER);
+        return 0;
+    }
+    if (ui->assets_n != UPD_ASSETS_SIZE || !md5_hex_is(ui->assets, ui->assets_n, MD5_ASSETS)) {
+        snprintf(ui->package_err, sizeof ui->package_err, "bundled assets image is not the 4 MiB sound partition");
         return 0;
     }
     return 1;
@@ -321,8 +340,8 @@ static int install_body(void *io_v, void *ctx)
         if (io->log) io->log(io->ctx, line);
         return rc;
     }
-    if (io->log) io->log(io->ctx, "first-install: full 16 MB backup, then bootloader 0x0, partitions 0x8000, app 0x10000. NVS is not written. baud cap 460800.");
-    rc = rom_first_install(io, job->images, 3, ROM_FLASH_SIZE, FW_VER, job->do_write,
+    if (io->log) io->log(io->ctx, "first-install: full 16 MB backup, then bootloader 0x0, partitions 0x8000, app 0x10000, sounds 0xA10000. NVS is not written. baud cap 460800.");
+    rc = rom_first_install(io, job->images, 4, ROM_FLASH_SIZE, FW_VER, job->do_write,
                            bk_write, bk_read, job, &job->ir);
     snprintf(line, sizeof line,
              "install rc=%d wrote=%d verified=%d restored=%d confirmed=%d version=%s nvs_written=%d stub=%d fallback=%d backup_bytes=%u error=%s",
@@ -349,6 +368,7 @@ static int run_job(inst_ui *ui, const wchar_t *port, int do_write, int probe, in
     job->images[0] = (rom_install_image){0, ui->boot, (uint32_t)ui->boot_n, "bootloader"};
     job->images[1] = (rom_install_image){UPD_PART_TABLE, ui->part, (uint32_t)ui->part_n, "partitions"};
     job->images[2] = (rom_install_image){UPD_APP_OFFSET, ui->app, (uint32_t)ui->app_n, "app"};
+    job->images[3] = (rom_install_image){UPD_ASSETS_OFFSET, ui->assets, (uint32_t)ui->assets_n, "assets"};
     if (!probe) bk_prepare(job);
     job->rc = link_run_rom_body(port, ui->status, &ui->cancel, cli, log_stdout, rom_only, probe ? 0 : 1,
                                 L"install", install_body, job, job->log_path, MAX_PATH, &job->ms_total);
@@ -430,14 +450,14 @@ static void send_log(inst_ui *ui)
     WideCharToMultiByte(CP_UTF8, 0, ui->port, -1, port8, (int)sizeof port8, NULL, NULL);
     snprintf(body, sizeof body,
              "First-install log for checking. No secrets and no home-folder path.\n\n"
-             "Link: 1.2.4 (updater core 1.2.3)\n"
+             "Link: 1.2.5 (updater core 1.2.3)\n"
              "Firmware package: %s\n"
              "Chip: esp32s3\n"
              "Baud cap: 460800 (not 921600)\n"
              "Port: %s\n"
              "Exit code: %d\n"
              "NVS written: no\n"
-             "Regions attempted: bootloader 0x0, partitions 0x8000, app 0x10000\n"
+             "Regions attempted: bootloader 0x0, partitions 0x8000, app 0x10000, sounds 0xA10000\n"
              "Confirmed version: %s\n"
              "Stub: %d  ROM fallback: %d\n"
              "Last error: %s\n\n"
@@ -484,7 +504,7 @@ static void apply_result(inst_ui *ui)
         ui->last_rc = 0;
     } else if (!ui->job.probe_only && ui->job.rc == 0 && ui->job.do_write) {
         _snwprintf(msg, 1200,
-                   L"Installed %hs and confirmed it after reset. NVS was not written. Set Config, Connectivity to USB. Sounds stay silent until the assets image is flashed.\nBackup:\n%s",
+                   L"Installed %hs and confirmed it after reset. NVS was not written. Sounds were written. Set Config, Connectivity to USB. A PH2.0-2P speaker on SPK, with DIP S1=0 and S0=0, is what makes them audible.\nBackup:\n%s",
                    FW_VER, bk);
         reg_set_offered();
     } else if (!ui->job.probe_only && ui->job.rc == 0) {
@@ -515,7 +535,7 @@ static void find_port(inst_ui *ui)
     EnableWindow(GetDlgItem(ui->hwnd, ID_GO), ui->package_ok);
     EnableWindow(GetDlgItem(ui->hwnd, ID_PROBE), TRUE);
     if (ui->package_ok)
-        set_status(ui, L"Port found. Back up and install reads all 16 MB first. That takes several minutes. Do not unplug the panel.");
+        set_status(ui, L"Port found. Back up and install reads all 16 MB first, then writes the app and the sounds. That takes several minutes. Do not unplug the panel.");
     else {
         wchar_t w[300];
         widen(ui->package_err, w, 300);
@@ -551,7 +571,7 @@ static void start_work_async(inst_ui *ui, int do_write, int probe)
     EnableWindow(GetDlgItem(ui->hwnd, ID_PROBE), FALSE);
     EnableWindow(GetDlgItem(ui->hwnd, ID_FIND), FALSE);
     set_status(ui, probe ? L"Checking the connection. Nothing will be written."
-                         : L"Reading the whole 16 MB flash before anything is written. This takes several minutes at 460800. Do not unplug the panel.");
+                         : L"Reading the whole 16 MB flash before anything is written. That backup, then the sound partition, takes several minutes at 460800. Do not unplug the panel.");
     w.ui = ui;
     w.do_write = do_write;
     w.probe = probe;
@@ -693,6 +713,7 @@ void link_install_show(HWND owner, int first_run)
     free(ui.boot);
     free(ui.part);
     free(ui.app);
+    free(ui.assets);
 }
 
 static int cli_port_ok(const wchar_t *port)
@@ -744,7 +765,7 @@ int link_install_cli(const wchar_t *cmdline)
     }
     link_cli_prepare();
     if (result_file) link_cli_result_open(result_file);
-    link_cli_line("HD2 Macropad Link v1.2.4 first-install");
+    link_cli_line("HD2 Macropad Link v1.2.5 first-install");
     if (bad || (yes && dry)) {
         link_cli_result("RESULT rc=2 error=\"usage: --install [--port COMn] --yes [--dry-run] [--log-stdout] [--rom-only] [--result-file f]. --port may be omitted when exactly one CH340 is connected\"");
         code = 2;
@@ -786,7 +807,7 @@ int link_install_cli(const wchar_t *cmdline)
     if (!ui.package_ok) {
         one_line(ui.package_err, errq, sizeof errq);
         link_cli_result("RESULT rc=4 error=\"%s\"", errq);
-        free(ui.boot); free(ui.part); free(ui.app);
+        free(ui.boot); free(ui.part); free(ui.app); free(ui.assets);
         code = 4;
         goto done;
     }
@@ -816,6 +837,7 @@ int link_install_cli(const wchar_t *cmdline)
     free(ui.boot);
     free(ui.part);
     free(ui.app);
+    free(ui.assets);
 done:
     link_cli_result_close();
     LocalFree(argv);

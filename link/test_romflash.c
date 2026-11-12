@@ -16,7 +16,9 @@ static void expect(int cond, const char *msg)
 }
 
 #ifndef TEST_MEM
-#define TEST_MEM (256 * 1024)
+/* Assets live at 0xA10000 and the image is 0x400000 bytes, so the mock
+ * flash has to cover through 0xE10000. */
+#define TEST_MEM 0xE20000
 #endif
 enum { MEM = TEST_MEM };
 
@@ -72,7 +74,7 @@ typedef struct {
     int read_active;
     uint32_t rd_addr, rd_len, rd_sent, rd_acked, rd_frames, rd_acks, rd_calls, rd_big_calls;
     md5_ctx rd_md5;
-    int defl_active, defl_begins, defl_ends, defl_bad;
+    int defl_active, defl_begins, defl_ends, defl_bad, assets_defl;
     uint32_t defl_size, defl_off, defl_blocks, defl_bs, defl_next_seq, defl_len;
     uint8_t defl_buf[MEM];
     int md5_calls;
@@ -186,6 +188,7 @@ static int mock_span_ok(uint32_t off, uint32_t size)
     if (off == 0 && erase <= 0x8000u) return 1;
     if (off == 0x8000u && erase <= 0x1000u) return 1;
     if (off == 0x10000u && off + erase <= 0xA10000u) return 1;
+    if (off == 0xA10000u && erase <= 0x400000u && off + erase <= 0xE10000u) return 1;
     return 0;
 }
 
@@ -282,6 +285,7 @@ static void handle_stub(fake_t *f, const uint8_t *pkt, size_t n)
         f->defl_len = 0;
         f->defl_next_seq = 0;
         f->defl_begins++;
+        if (f->defl_off == 0xA10000u) f->assets_defl++;
         if (n != 8 + 20 || f->defl_bs != 0x4000 || !mock_span_ok(f->defl_off, f->defl_size)) {
             reply_stub(f, op, 0, NULL, 0, 0xC000);
             return;
@@ -707,7 +711,7 @@ static void build_big(uint8_t *img, size_t cap, uint32_t *len, const char *ver, 
     }
 }
 
-static uint8_t g_chip_backup[0x20000];
+static uint8_t g_chip_backup[0xE20000];
 static uint32_t g_chip_backup_len;
 static int g_backup_during_write;
 
@@ -756,6 +760,7 @@ static void prep_stock(fake_t *f)
     memset(f->mem, 0xFF, sizeof f->mem);
     f->mem[0x9000] = 0xA5;
     f->mem[0xF000] = 0x5A;
+    f->mem[0xA10010] = 0x6E; /* stock byte inside the assets region */
     f->stub_ok = 1;
     f->classic_reset_required = 1;
     f->silent_first_sync = 1;
@@ -1120,29 +1125,43 @@ int main(void)
         io = io_of(&fake);
         expect(rom_probe(&io, &pr) == 0, pr.error);
         expect(pr.stub == 0 && pr.stub_fallback == 1 && strcmp(pr.app_md5, hx) == 0, "probe ROM fallback MD5");
+
+        /* App-only update writes 0x10000 and does not touch assets, NVS, or phy. */
+        prep_stub(&fake, big_old, bo_len);
+        fake.mem[0x9000] = 0xA5;
+        fake.mem[0xF000] = 0x5A;
+        fake.mem[0xA10000] = 0x3C;
+        io = io_of(&fake);
+        expect(rom_update_app(&io, big_new, bn_len, "v1.9.1-cp7.2", 0, 1, save_backup, NULL, &rr) == 0, rr.error);
+        expect(fake.mem[0xA10000] == 0x3C && fake.assets_defl == 0, "app-only update did not write assets");
+        expect(fake.mem[0x9000] == 0xA5 && fake.mem[0xF000] == 0x5A && fake.saw_erase == 0, "app-only left NVS and phy");
     }
 
-    /* Factory first-install: full backup first, then bootloader + cp7 table + app.
-     * NVS and phy_init stay. No chip-erase opcode. */
+    /* Factory first-install: full backup first, then bootloader, cp7 table,
+     * app, and assets. NVS and phy_init stay. No chip-erase opcode. */
     {
-        static uint8_t boot[256], part[0xC00], app[40000];
+        static uint8_t boot[256], part[0xC00], app[40000], assets_img[4096];
         uint32_t boot_len = 0, app_len = 0;
-        const uint32_t backup_len = 0x18000;
-        rom_install_image imgs[3];
+        const uint32_t backup_len = 0xA20000;
+        rom_install_image imgs[4];
         rom_install_result ir;
+        uint8_t md_want[16], md_got[16];
         build_image(boot, sizeof boot, &boot_len, "boot-new");
         fill_cp7_table(part);
         build_big(app, sizeof app, &app_len, "v1.9.1-cp7.2", 20000, 9);
+        for (int ai = 0; ai < (int)sizeof assets_img; ai++) assets_img[ai] = (uint8_t)(ai * 3 + 1);
         expect(upd_partition_is_cp7(part, sizeof part, err, sizeof err), err);
-        expect(0x10000u + app_len < backup_len, "test app fits in the backup");
+        expect(0x10000u + app_len < 0xA10000u, "test app stays out of assets");
+        expect(backup_len >= 0xA10000u + sizeof assets_img, "backup covers assets");
         imgs[0] = (rom_install_image){0, boot, boot_len, "bootloader"};
         imgs[1] = (rom_install_image){0x8000, part, sizeof part, "partitions"};
         imgs[2] = (rom_install_image){0x10000, app, app_len, "app"};
+        imgs[3] = (rom_install_image){0xA10000, assets_img, sizeof assets_img, "assets"};
 
         imgs[0].offset = 0x9000;
         prep_stock(&fake);
         io = io_of(&fake);
-        expect(rom_first_install(&io, imgs, 3, backup_len, "v1.9.1-cp7.2", 1,
+        expect(rom_first_install(&io, imgs, 4, backup_len, "v1.9.1-cp7.2", 1,
                                  chip_backup_write, chip_backup_read, &fake, &ir) != 0, "NVS region refused");
         expect(fake.defl_begins == 0 && fake.began == 0 && fake.saw_erase == 0, "refused region never touched the wire");
         expect(fake.mem[0x9000] == 0xA5, "NVS still the stock byte");
@@ -1150,14 +1169,14 @@ int main(void)
 
         prep_stock(&fake);
         io = io_of(&fake);
-        expect(rom_first_install(&io, imgs, 3, backup_len, "v1.9.1-cp7.2", 1,
+        expect(rom_first_install(&io, imgs, 4, backup_len, "v1.9.1-cp7.2", 1,
                                  chip_backup_fail, chip_backup_read, &fake, &ir) != 0, "backup save failure");
         expect(ir.wrote == 0 && fake.defl_begins == 0 && fake.saw_erase == 0, "failed backup writes nothing");
         expect(fake.mem[0x9000] == 0xA5, "NVS after failed backup");
 
         prep_stock(&fake);
         io = io_of(&fake);
-        expect(rom_first_install(&io, imgs, 3, backup_len, "v1.9.1-cp7.2", 0,
+        expect(rom_first_install(&io, imgs, 4, backup_len, "v1.9.1-cp7.2", 0,
                                  chip_backup_write, chip_backup_read, &fake, &ir) == 0, ir.error);
         expect(ir.backed_up == 1 && ir.backup_bytes == backup_len && ir.wrote == 0, "dry run backed up only");
         expect(fake.defl_begins == 0 && fake.data_writes == 0 && fake.saw_erase == 0, "dry run did not program");
@@ -1167,7 +1186,7 @@ int main(void)
         prep_stock(&fake);
         io = io_of(&fake);
         io.reopen = fake_reopen;
-        expect(rom_first_install(&io, imgs, 3, backup_len, "v1.9.1-cp7.2", 1,
+        expect(rom_first_install(&io, imgs, 4, backup_len, "v1.9.1-cp7.2", 1,
                                  chip_backup_write, chip_backup_read, &fake, &ir) == 0, ir.error);
         expect(ir.used_stub == 1 && ir.stub_fallback == 0 && ir.verified == 1 && ir.confirmed == 1, "stub first-install verified");
         expect(strcmp(ir.confirmed_version, "v1.9.1-cp7.2") == 0, ir.confirmed_version);
@@ -1178,6 +1197,11 @@ int main(void)
         expect(memcmp(fake.mem, boot, boot_len) == 0, "bootloader landed");
         expect(memcmp(fake.mem + 0x8000, part, sizeof part) == 0, "partition table landed");
         expect(memcmp(fake.mem + 0x10000, app, app_len) == 0, "app landed");
+        expect(memcmp(fake.mem + 0xA10000, assets_img, sizeof assets_img) == 0, "assets landed");
+        md5_buf(assets_img, sizeof assets_img, md_want);
+        md5_buf(fake.mem + 0xA10000, sizeof assets_img, md_got);
+        expect(memcmp(md_want, md_got, 16) == 0, "assets MD5 matches the image");
+        expect(fake.assets_defl >= 1, "assets write used FLASH_DEFL");
         expect(fake.mem[0x9000] == 0xA5 && fake.mem[0xF000] == 0x5A, "NVS and phy_init untouched");
         expect(fake.saw_backup && fake.saw_write && fake.saw_verify, "install progress phases");
         expect(fake.backup_done_max == backup_len, "backup progress covered the whole read");
@@ -1186,19 +1210,20 @@ int main(void)
         prep_stock(&fake);
         fake.stub_corrupt_once = 1;
         io = io_of(&fake);
-        expect(rom_first_install(&io, imgs, 3, backup_len, "v1.9.1-cp7.2", 1,
+        expect(rom_first_install(&io, imgs, 4, backup_len, "v1.9.1-cp7.2", 1,
                                  chip_backup_write, chip_backup_read, &fake, &ir) != 0, "corrupt install fails");
         expect(ir.wrote == 1 && ir.restored == 1 && ir.nvs_written == 0, ir.error);
         expect(fake.mem[0] == 0xFF, "bootloader restored to stock 0xFF");
         expect(fake.mem[0x8000] == 0xFF, "partition table restored");
         expect(fake.mem[0x10000] == 0xFF, "app restored");
+        expect(fake.mem[0xA10010] == 0x6E, "assets restored from the backup");
         expect(fake.mem[0x9000] == 0xA5 && fake.mem[0xF000] == 0x5A && fake.saw_erase == 0, "rollback did not touch NVS, phy, or erase the chip");
 
         /* First data block rejected: bootloader began, then the backup is put back. */
         prep_stock(&fake);
         fake.stub_fail_defl_seq = 1;
         io = io_of(&fake);
-        expect(rom_first_install(&io, imgs, 3, backup_len, "v1.9.1-cp7.2", 1,
+        expect(rom_first_install(&io, imgs, 4, backup_len, "v1.9.1-cp7.2", 1,
                                  chip_backup_write, chip_backup_read, &fake, &ir) != 0, "defl failure fails the install");
         expect(ir.wrote == 1 && ir.restored == 1 && fake.mem[0x9000] == 0xA5, ir.error);
         expect(fake.mem[0] == 0xFF && fake.saw_erase == 0, "partial boot write rolled back");
@@ -1207,7 +1232,7 @@ int main(void)
         prep_stock(&fake);
         fake.stub_bad_digest = 1;
         io = io_of(&fake);
-        expect(rom_first_install(&io, imgs, 3, backup_len, "v1.9.1-cp7.2", 1,
+        expect(rom_first_install(&io, imgs, 4, backup_len, "v1.9.1-cp7.2", 1,
                                  chip_backup_write, chip_backup_read, &fake, &ir) == 0, ir.error);
         expect(ir.stub_fallback == 1 && ir.used_stub == 0 && ir.verified == 1 && ir.confirmed == 1, "ROM fallback first-install");
         expect(memcmp(fake.mem + 0x10000, app, app_len) == 0, "ROM fallback wrote the app");
@@ -1217,7 +1242,7 @@ int main(void)
         prep_stock(&fake);
         fake.stub_no_ohai = 1;
         io = io_of(&fake);
-        expect(rom_first_install(&io, imgs, 3, backup_len, "v1.9.1-cp7.2", 1,
+        expect(rom_first_install(&io, imgs, 4, backup_len, "v1.9.1-cp7.2", 1,
                                  chip_backup_write, chip_backup_read, &fake, &ir) == 0, ir.error);
         expect(ir.stub_fallback == 1 && ir.used_stub == 0 && ir.verified == 1, "no OHAI first-install used ROM");
         expect(fake.mem[0x9000] == 0xA5, "NVS after no-OHAI install");
@@ -1247,6 +1272,39 @@ int main(void)
             expect(boot && upd_image_length(boot, bn, &blen, err, sizeof err) && blen == bn && bn <= 0x7000, err[0] ? err : "shipped bootloader walks");
             expect(boot && boot[0] == 0xE9 && boot[12] == 9, "shipped bootloader is ESP32-S3");
             free(boot);
+        }
+        {
+            FILE *af = fopen("firmware/assets_fat_0xa10000.img", "rb");
+            uint8_t *aimg = NULL;
+            uint8_t md[16];
+            char hx[33];
+            rom_install_image real_imgs[4];
+            const uint32_t full_backup = 0xE10000;
+            expect(af != NULL, "firmware/assets_fat_0xa10000.img is present");
+            if (af) {
+                aimg = (uint8_t *)malloc(0x400000);
+                expect(aimg && fread(aimg, 1, 0x400000, af) == 0x400000, "assets image is 4 MiB");
+                fclose(af);
+            }
+            if (aimg) {
+                md5_buf(aimg, 0x400000, md);
+                for (int i = 0; i < 16; i++) snprintf(hx + i * 2, 3, "%02x", md[i]);
+                expect(strcmp(hx, "56ad5746c2f2940c636553dcdcae383e") == 0, "shipped assets MD5");
+                real_imgs[0] = imgs[0];
+                real_imgs[1] = imgs[1];
+                real_imgs[2] = imgs[2];
+                real_imgs[3] = (rom_install_image){0xA10000, aimg, 0x400000, "assets"};
+                prep_stock(&fake);
+                io = io_of(&fake);
+                expect(rom_first_install(&io, real_imgs, 4, full_backup, "v1.9.1-cp7.2", 1,
+                                         chip_backup_write, chip_backup_read, &fake, &ir) == 0, ir.error);
+                expect(fake.saw_erase == 0 && ir.nvs_written == 0, "real assets install did not erase the chip");
+                expect(fake.mem[0x9000] == 0xA5 && fake.mem[0xF000] == 0x5A, "real assets install left NVS and phy");
+                expect(memcmp(fake.mem + 0xA10000, aimg, 0x400000) == 0, "real assets image is byte-identical on the mock chip");
+                expect(ir.used_stub == 1 && ir.verified == 1 && fake.assets_defl >= 1, "real assets used compressed stub writes");
+                expect(g_backup_during_write == 0 && ir.backed_up == 1, "backup was saved before the assets write");
+            }
+            free(aimg);
         }
     }
 

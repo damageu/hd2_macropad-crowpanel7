@@ -727,8 +727,8 @@ static int ranges_overlap(uint32_t a, uint32_t an, uint32_t b, uint32_t bn)
 }
 
 /* App-only updates may program only the factory slot. A first-install may
- * also program the bootloader and the partition table. NVS, phy_init, and
- * the assets partition are never a legal target. Erase is the 4 KB round-up
+ * also program the bootloader, the partition table, and the assets FAT.
+ * NVS and phy_init are never a legal target. Erase is the 4 KB round-up
  * the loader will actually clear. */
 static int span_ok(uint32_t offset, uint32_t len, char *err, size_t err_cap)
 {
@@ -745,15 +745,22 @@ static int span_ok(uint32_t offset, uint32_t len, char *err, size_t err_cap)
         return 1;
     }
     if (ranges_overlap(offset, erase, UPD_NVS_OFFSET, UPD_NVS_SIZE) ||
-        ranges_overlap(offset, erase, 0xF000u, 0x1000u) ||
+        ranges_overlap(offset, erase, 0xF000u, 0x1000u)) {
+        snprintf(err, err_cap, "refusing a write over NVS or phy_init");
+        return 0;
+    }
+    if (offset != UPD_ASSETS_OFFSET &&
         ranges_overlap(offset, erase, UPD_ASSETS_OFFSET, UPD_ASSETS_SIZE)) {
-        snprintf(err, err_cap, "refusing a write over NVS, phy_init, or the assets partition");
+        snprintf(err, err_cap, "refusing a write that spills into the assets partition");
         return 0;
     }
     if (offset == 0 && erase <= UPD_PART_TABLE) return 1;
     if (offset == UPD_PART_TABLE && len <= UPD_PART_TABLE_LEN && offset + erase <= UPD_NVS_OFFSET) return 1;
     if (upd_range_is_app_slot(offset, len) && offset + erase <= UPD_APP_SLOT_END) return 1;
-    snprintf(err, err_cap, "refusing a write outside the bootloader, partition table, and factory app");
+    if (offset == UPD_ASSETS_OFFSET && len <= UPD_ASSETS_SIZE &&
+        offset + erase <= UPD_ASSETS_OFFSET + UPD_ASSETS_SIZE)
+        return 1;
+    snprintf(err, err_cap, "refusing a write outside the bootloader, partition table, app, and assets");
     return 0;
 }
 
@@ -1671,10 +1678,13 @@ static int image_is_esp(const uint8_t *p, uint32_t len, char *err, size_t cap)
     return 1;
 }
 
+#define INSTALL_N 4
+
 static const char *phase_for(uint32_t offset, int verify)
 {
     if (offset == 0) return verify ? "verify-boot" : "write-boot";
     if (offset == UPD_PART_TABLE) return verify ? "verify-part" : "write-part";
+    if (offset == UPD_ASSETS_OFFSET) return verify ? "verify-assets" : "write-assets";
     return verify ? "verify-app" : "write-app";
 }
 
@@ -1748,12 +1758,12 @@ static int backup_matches_edge(rom_io *io, uint32_t len,
     return 0;
 }
 
-static int restore_regions(rom_io *io, const rom_install_image *ordered[3], const int began[3],
+static int restore_regions(rom_io *io, const rom_install_image *ordered[INSTALL_N], const int began[INSTALL_N],
                            int (*backup_read)(void *, uint32_t, uint8_t *, uint32_t),
                            void *ctx, char *err, size_t err_cap)
 {
     int i;
-    for (i = 2; i >= 0; i--) {
+    for (i = INSTALL_N - 1; i >= 0; i--) {
         uint8_t *buf;
         int dummy = 0;
         const rom_install_image *im;
@@ -1801,19 +1811,19 @@ static int reconnect_loader(rom_io *io, char *err, size_t err_cap)
     return enter_flash_session(io, 1, !s_stub_disabled && !io->rom_only, err, err_cap);
 }
 
-static int install_session(rom_io *io, const rom_install_image *ordered[3], uint32_t backup_len,
+static int install_session(rom_io *io, const rom_install_image *ordered[INSTALL_N], uint32_t backup_len,
                            const char *expect_version, int do_write, int use_stub,
                            int (*backup_write)(void *, uint32_t, const uint8_t *, uint32_t),
                            int (*backup_read)(void *, uint32_t, uint8_t *, uint32_t),
                            void *backup_ctx, rom_install_result *result)
 {
     char err[220];
-    int began[3] = {0, 0, 0};
+    int began[INSTALL_N] = {0, 0, 0, 0};
     int i, any = 0;
     unsigned t0;
     err[0] = 0;
     if (io->progress) io->progress(io->ctx, "reset", 0, 1);
-    rom_log(io, "first-install %s, backup_len=%u, do_write=%d, path=%s. NVS, phy_init, and assets are not write targets.",
+    rom_log(io, "first-install %s, backup_len=%u, do_write=%d, path=%s. Writes bootloader, partitions, app, and assets. NVS and phy_init are not write targets.",
             expect_version, (unsigned)backup_len, do_write,
             use_stub && !io->rom_only && !s_stub_disabled ? "stub (ROM fallback)" : "ROM only");
     t0 = now_ms(io);
@@ -1840,7 +1850,7 @@ static int install_session(rom_io *io, const rom_install_image *ordered[3], uint
     }
     s_write_attempted = 1;
     t0 = now_ms(io);
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < INSTALL_N; i++) {
         int region_wrote = 0;
         const rom_install_image *im = ordered[i];
         rom_log(io, "writing %s at 0x%X (%u bytes)", im->name ? im->name : "?",
@@ -1856,7 +1866,7 @@ static int install_session(rom_io *io, const rom_install_image *ordered[3], uint
     }
     result->ms_write = since(io, t0);
     t0 = now_ms(io);
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < INSTALL_N; i++) {
         const rom_install_image *im = ordered[i];
         int v = verify_region_at(io, im->offset, im->data, im->len, phase_for(im->offset, 1), err, sizeof err);
         if (v < 0 && s_stub) {
@@ -1899,7 +1909,7 @@ static int install_session(rom_io *io, const rom_install_image *ordered[3], uint
         snprintf(result->confirmed_version, sizeof result->confirmed_version, "%s", tmp.confirmed_version);
     }
     snprintf(result->error, sizeof result->error,
-             "installed %s and confirmed after reset. Bootloader, partition table, and app were written and checked. NVS was not written.",
+             "installed %s and confirmed after reset. Bootloader, partition table, app, and sounds were written and checked. NVS was not written.",
              expect_version);
     return 0;
 
@@ -1915,7 +1925,7 @@ rollback:
         return -1;
     }
 rollback_connected:
-    for (i = 0; i < 3; i++) any += began[i];
+    for (i = 0; i < INSTALL_N; i++) any += began[i];
     if (!any) {
         snprintf(result->error, sizeof result->error, "nothing was programmed. %s", err[0] ? err : "stopped");
         finish_reset(io);
@@ -1946,14 +1956,14 @@ leave:
 }
 
 static int classify_images(const rom_install_image *images, int nimages, const char *expect_version,
-                           const rom_install_image *ordered[3], uint32_t backup_len,
+                           const rom_install_image *ordered[INSTALL_N], uint32_t backup_len,
                            char *err, size_t err_cap)
 {
-    const rom_install_image *boot = NULL, *part = NULL, *app = NULL;
+    const rom_install_image *boot = NULL, *part = NULL, *app = NULL, *assets = NULL;
     char ver[32];
     int i;
-    if (!images || nimages != 3 || !expect_version || !expect_version[0]) {
-        snprintf(err, err_cap, "first-install needs a bootloader, a partition table, and an app");
+    if (!images || nimages != INSTALL_N || !expect_version || !expect_version[0]) {
+        snprintf(err, err_cap, "first-install needs a bootloader, a partition table, an app, and the assets image");
         return -1;
     }
     if (!backup_len || (backup_len & 4095u) || backup_len < 64 || backup_len > ROM_FLASH_SIZE) {
@@ -1964,13 +1974,14 @@ static int classify_images(const rom_install_image *images, int nimages, const c
         if (images[i].offset == 0) boot = &images[i];
         else if (images[i].offset == UPD_PART_TABLE) part = &images[i];
         else if (images[i].offset == UPD_APP_OFFSET) app = &images[i];
+        else if (images[i].offset == UPD_ASSETS_OFFSET) assets = &images[i];
         else {
             snprintf(err, err_cap, "refusing a first-install region at 0x%X", (unsigned)images[i].offset);
             return -1;
         }
     }
-    if (!boot || !part || !app) {
-        snprintf(err, err_cap, "first-install needs the bootloader, the partition table, and the app");
+    if (!boot || !part || !app || !assets) {
+        snprintf(err, err_cap, "first-install needs the bootloader, the partition table, the app, and the assets image");
         return -1;
     }
     if (!image_is_esp(boot->data, boot->len, err, err_cap) || erase_span(boot->len) > UPD_PART_TABLE) {
@@ -1993,13 +2004,23 @@ static int classify_images(const rom_install_image *images, int nimages, const c
         snprintf(err, err_cap, "app image version does not match %s", expect_version);
         return -1;
     }
+    if (!assets->data || assets->len == 0 || assets->len > UPD_ASSETS_SIZE ||
+        UPD_ASSETS_OFFSET + erase_span(assets->len) > UPD_ASSETS_OFFSET + UPD_ASSETS_SIZE) {
+        snprintf(err, err_cap, "assets image does not fit the assets partition");
+        return -1;
+    }
     if (backup_len < UPD_APP_OFFSET + erase_span(app->len)) {
         snprintf(err, err_cap, "backup does not cover the app region");
+        return -1;
+    }
+    if (backup_len < UPD_ASSETS_OFFSET + erase_span(assets->len)) {
+        snprintf(err, err_cap, "backup does not cover the assets region");
         return -1;
     }
     ordered[0] = boot;
     ordered[1] = part;
     ordered[2] = app;
+    ordered[3] = assets;
     return 0;
 }
 
@@ -2010,7 +2031,7 @@ int rom_first_install(rom_io *io, const rom_install_image *images, int nimages,
                       void *backup_ctx, rom_install_result *result)
 {
     char err[220];
-    const rom_install_image *ordered[3];
+    const rom_install_image *ordered[INSTALL_N];
     rom_result gate;
     int rc;
     if (!result) return -1;

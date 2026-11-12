@@ -78,9 +78,8 @@ int rom_probe(rom_io *io, rom_probe_result *pr);
 #define ROM_FLASH_SIZE 0x01000000u
 
 /* One image in a factory first-install. Allowed offsets are only:
- * bootloader at 0x0, the cp7 partition table at 0x8000, and the factory
- * app at 0x10000. NVS, phy_init, and the assets partition are not in this
- * list and are refused. */
+ * bootloader at 0x0, the cp7 partition table at 0x8000, the factory app at
+ * 0x10000, and the assets FAT at 0xA10000. NVS and phy_init are refused. */
 typedef struct {
     uint32_t offset;
     const uint8_t *data;

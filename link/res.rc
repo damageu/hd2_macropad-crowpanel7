@@ -1,7 +1,7 @@
 1 ICON "app.ico"
 1 VERSIONINFO
-FILEVERSION 1,2,4,0
-PRODUCTVERSION 1,2,4,0
+FILEVERSION 1,2,5,0
+PRODUCTVERSION 1,2,5,0
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
@@ -9,8 +9,8 @@ BEGIN
     BEGIN
       VALUE "FileDescription", "HD2 Macropad Link"
       VALUE "ProductName", "HD2 Macropad Link"
-      VALUE "FileVersion", "1.2.4"
-      VALUE "ProductVersion", "1.2.4"
+      VALUE "FileVersion", "1.2.5"
+      VALUE "ProductVersion", "1.2.5"
       VALUE "Comments", "First-install and app update for CrowPanel Advance 7.0. Updater core 1.2.3. Flash baud at most 460800."
     END
   END
@@ -21,8 +21,11 @@ BEGIN
 END
 
 /* Bundled CrowPanel Advance 7.0 firmware for the one-file first install.
- * 101 bootloader, 102 cp7 partition table, 103 tested v1.9.1-cp7.2 app.
- * The app file is the hardware-tested image. Do not substitute a rebuild. */
+ * 101 bootloader, 102 cp7 partition table, 103 tested v1.9.1-cp7.2 app,
+ * 104 the 4 MiB assets FAT (sounds) at 0xA10000.
+ * The app file is the hardware-tested image. The assets file is the
+ * cp7/cp7.1/cp7.2 sound image. Do not substitute a rebuild of either. */
 101 RCDATA "firmware/bootloader.bin"
 102 RCDATA "firmware/partitions.bin"
 103 RCDATA "../tools/crowpanel/test-package/hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin"
+104 RCDATA "firmware/assets_fat_0xa10000.img"

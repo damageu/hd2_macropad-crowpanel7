@@ -1,0 +1,24 @@
+CrowPanel HD2 Macropad assets (sound) FAT partition image
+File: assets_fat_0xa10000.img
+Size: 4194304 bytes (4 MiB, 0x400000)
+Flash offset: 0xA10000
+Partition name: assets, type data, subtype fat
+SHA-256: d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10
+MD5: 56ad5746c2f2940c636553dcdcae383e
+
+Provenance (from /workspace/macropad-cp7.2/CHANGES.md, 10 Nov 2026 port notes):
+This is the read-only FAT sound partition used in the cp7 / cp7.1 / cp7.2 CrowPanel
+builds. It was taken from the cp7 image and checked file by file: all 20 WAVs are
+identical to upstream unic8s/hd2_macropad sdcard/assets at commit 82bba34.
+
+The three local copies (assets_fat_0xa10000.img, assets_cp7.2.img, assets_cp7.img)
+are byte-identical.
+
+WAV files expected on the volume:
+_des.wav _man.wav _rst.wav _sel.wav _swp.wav _swt.wav
+bkpk.wav bot.wav eagrel.wav eagstk.wav intro.wav min.wav
+mrt.wav orbstk.wav reinf.wav shd.wav snt.wav sos.wav supp.wav weap.wav
+
+Do not regenerate a different image unless it is verified byte-identical to this
+file, or you can prove the 20 WAVs and FAT layout are equivalent and you document
+the new hashes. Prefer embedding this exact image.

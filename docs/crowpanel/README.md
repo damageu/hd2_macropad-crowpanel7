@@ -66,20 +66,20 @@ Sounds live in a read-only FAT partition named `assets` at `0xA10000` (4 MB), be
 
 ## First install (Windows exe)
 
-The primary path is one Windows program: `HD2MacropadLink-v1.2.4.exe`. It is the tray app and the installer. There is no Mac or Linux installer, and there is no second download for Link. It is not a published GitHub Release yet. Build it with `link/BUILD.txt`, or use the exe attached to the pull request that added this installer.
+The primary path is one Windows program: `HD2MacropadLink-v1.2.5.exe`. It is the tray app and the installer. There is no Mac or Linux installer, and there is no second download for Link. It is not a published GitHub Release yet. Build it with `link/BUILD.txt`, or use the exe attached to the pull request that added this installer.
 
 Plug the panel in with a USB-C **data** cable and start the exe. The first window is **Install HD2 Macropad firmware**. It finds the CH340 COM port itself. You do not type COM5.
 
 **Back up and install** is for a stock Elecrow board, or any board that is not already running this HD2 port. In order:
 
-1. It reads the entire 16 MB flash to `%LOCALAPPDATA%\HD2MacropadLink\backups\flash-full-<timestamp>.bin` before it changes the chip. On the maintainer's board, reading the 2.4 MB app at 460800 took 62.6 seconds, and that whole backup run was 93.1 seconds. The 16 MB read uses the same flasher, so expect several minutes. The status line shows bytes and percent the whole time. Baud is 460800. 921600 is never used.
-2. It writes three regions only: bootloader at `0x0`, the cp7 partition table at `0x8000`, and the `v1.9.1-cp7.2` app at `0x10000`.
+1. It reads the entire 16 MB flash to `%LOCALAPPDATA%\HD2MacropadLink\backups\flash-full-<timestamp>.bin` before it changes the chip. The 16 MB backup, and the 4 MB sound write after it, take several minutes. The status line shows bytes and percent the whole time. Baud is 460800. 921600 is never used.
+2. It writes four regions only: bootloader at `0x0`, the cp7 partition table at `0x8000`, the `v1.9.1-cp7.2` app at `0x10000`, and the sound FAT at `0xA10000` (4 MB).
 3. It checks each region (MD5 with the flasher stub, or a read-back if the stub had to fall back to the ROM loader). The log says `FALLBACK` when that happens.
 4. It resets the board and reads the app version. Success means that read is `v1.9.1-cp7.2`.
 
-It does **not** mass-erase the chip. It does **not** write NVS at `0x9000` (24 KB), phy_init at `0xF000`, or the sound partition at `0xA10000`. A stock board's NVS is not HD2 presets. Those bytes stay where they are, including if a later step fails and the installer writes the backup back over the bootloader, partition table, and app. After the board boots, open Config and set Connectivity to USB. The HD2 app itself erases NVS only if `nvs_flash_init` reports no free pages or a new NVS version (`src/configuration.c`). This installer does not do that erase.
+It does **not** mass-erase the chip. It does **not** write NVS at `0x9000` (24 KB) or phy_init at `0xF000`. A stock board's NVS is not HD2 presets. Those bytes stay where they are. If a later step fails, the installer writes the backup back over every region it changed, including the sounds, and still does not write NVS. After the board boots, open Config and set Connectivity to USB. The HD2 app itself erases NVS only if `nvs_flash_init` reports no free pages or a new NVS version (`src/configuration.c`). This installer does not do that erase.
 
-Sounds stay silent on a stock board until the assets image is flashed. Missing sounds do not stop the rest of the firmware from booting. The assets image is not inside the exe.
+The sound image in the exe is the one used for the cp7, cp7.1, and cp7.2 builds (SHA-256 `d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10`). All 20 WAVs match upstream `unic8s/hd2_macropad` `sdcard/assets` at commit `82bba34`. You still need a speaker with a PH2.0-2P plug on the SPK header, DIP S1=0 and S0=0, and mute off, to hear them. v1.2.4 did not write this partition. v1.2.5 does. Do not run Back up and install on a board that already runs HD2.
 
 If the board **already** runs HD2 (cp7, cp7.1, or cp7.2), do not use Back up and install. Use the tray menu **Check for firmware update...** or, until a release exists, **Install local test package...**. That path writes only the app at `0x10000` and leaves NVS, including presets, alone.
 
@@ -90,7 +90,7 @@ Close this exe before a manual esptool run. It holds the COM port. If Windows sa
 ## If the board already runs HD2
 
 1. Quit any older HD2 Macropad Link from the tray. The COM port is exclusive.
-2. Run `HD2MacropadLink-v1.2.4.exe`. It picks the CH340. Unplug other CH340 devices first if more than one is connected.
+2. Run `HD2MacropadLink-v1.2.5.exe`. It picks the CH340. Unplug other CH340 devices first if more than one is connected.
 3. On the macropad, open Config and set Connectivity to USB. The tray icon should say it is connected. The link stays at 115200 baud.
 4. There is still no stable GitHub release. Use **Install local test package...** and open `tools/crowpanel/test-package/crowpanel-update.json`. The window says LOCAL TEST PACKAGE. Press **Update** only when you are not in a mission. **Check board only** restarts the macropad and does not write.
 5. The updater backs up the current app under `%LOCALAPPDATA%\HD2MacropadLink\backups\`, writes the new app at `0x10000` only, checks the flash MD5, and confirms the version after reset. NVS is not written. About should show `v1.9.1-cp7.2`.
@@ -107,9 +107,9 @@ Until that release exists, the check says that no stable package is published. T
 
 The program does not download or start a new copy of itself. Replacing HD2 Macropad Link later means installing a new exe you built or that a release explicitly documents.
 
-## HD2 Macropad Link v1.2.4
+## HD2 Macropad Link v1.2.5
 
-Source and build steps: `link/BUILD.txt`. The updater behaviour is the hardware-tested v1.2.3 core. v1.2.4 adds the first-install window. Third-party notices: `link/THIRD-PARTY-NOTICES.txt`. The flasher stub is esp-flasher-stub v0.2.0 (Apache-2.0 OR MIT), not esptool's GPL stub.
+Source and build steps: `link/BUILD.txt`. The updater behaviour is the hardware-tested v1.2.3 core. v1.2.4 added the first-install window without sounds. v1.2.5 is that program plus the sound partition, so the two exes stay distinguishable. Third-party notices: `link/THIRD-PARTY-NOTICES.txt`. The flasher stub is esp-flasher-stub v0.2.0 (Apache-2.0 OR MIT), not esptool's GPL stub.
 
 The app finds a CH340 serial port, answers PINGs, and turns keyboard frames into `SendInput` scancodes. It keeps each key down for at least 30 ms and leaves at least 8 ms between events, so a burst after the PC wakes cannot become a zero-length tap. It pings every 500 ms. RTS and DTR stay released so opening the port does not reset the board.
 
@@ -175,7 +175,7 @@ That file is written at `0x10000`. It does not contain the sound partition.
 python ~/.platformio/packages/framework-espidf/components/fatfs/fatfsgen.py sdcard --output_file assets_fat_0xa10000.img --partition_size 0x400000 --sector_size 4096
 ```
 
-Do not pass `--long_name_support`. The sdkconfig leaves long names off. Use `fatfsgen.py`, not `wl_fatfsgen.py`: the firmware mounts this partition read-only. Run `fatfsgen.py --help` if a future framework moves those flags. The image is not committed. A full flash image without it still boots. Sounds stay silent until the `assets` partition is present.
+Do not pass `--long_name_support`. The sdkconfig leaves long names off. Use `fatfsgen.py`, not `wl_fatfsgen.py`: the firmware mounts this partition read-only. Run `fatfsgen.py --help` if a future framework moves those flags. A freshly generated image is not what the installer embeds. The installer uses the committed cp7 sound image `link/firmware/assets_fat_0xa10000.img`. Missing sounds mute playback. They do not stop the rest of the firmware from booting.
 
 Merge the app with that image:
 
@@ -193,7 +193,7 @@ tools/crowpanel/hd2_macropad_v1.9.1-cp7.2_crowpanel_adv7_0x0.bin
 
 ## Manual flash, update, and backup
 
-These scripts are the advanced and recovery path. They are not the normal first install. Use `HD2MacropadLink-v1.2.4.exe` for that. The scripts are Windows only. They call esptool. They do not install Python packages. Install esptool yourself (`python -m pip install esptool`) if `python -m esptool version` fails.
+These scripts are the advanced and recovery path. They are not the normal first install. Use `HD2MacropadLink-v1.2.5.exe` for that. The scripts are Windows only. They call esptool. They do not install Python packages. Install esptool yourself (`python -m pip install esptool`) if `python -m esptool version` fails.
 
 | Script | What it does |
 | --- | --- |
@@ -214,18 +214,18 @@ Chip is `esp32s3`. Example, with the port you actually have:
 ```text
 python -m esptool --chip esp32s3 --port COM7 --baud 460800 read_flash 0x0 0x1000000 flash-backup.bin
 python -m esptool --chip esp32s3 --port COM7 --baud 460800 write_flash 0x10000 hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin
-python -m esptool --chip esp32s3 --port COM7 --baud 115200 write_flash 0x0 bootloader.bin 0x8000 partitions.bin 0x10000 hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin
+python -m esptool --chip esp32s3 --port COM7 --baud 115200 write_flash 0x0 bootloader.bin 0x8000 partitions.bin 0x10000 hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin 0xA10000 assets_fat_0xa10000.img
 ```
 
-The last command is the same three regions as the installer. It does not erase the whole chip and it does not write NVS. Close Link first.
+The last command is the same four regions as the installer. It does not erase the whole chip and it does not write NVS. Close Link first. `assets_fat_0xa10000.img` is `link/firmware/assets_fat_0xa10000.img`.
 
 ### App-only update
 
 Use the Link tray update, or `update_COM5.bat`, when the board is already running a cp7, cp7.1, or cp7.2 layout:
 
 - NVS is at `0x9000` and is not rewritten
-- factory app is at `0x10000`, size `0xA00000`
-- assets FAT is at `0xA10000`
+- factory app is at `0x10000`, size `0xA00000`, and is the only region this script writes
+- assets FAT is at `0xA10000` and is not rewritten by an app-only update
 - presets and the Connectivity setting stay
 
 This rebase did not change NVS key names. `trigger` is an additional key from upstream v1.9.1. Older cp7.2 presets still load. The new trigger key defaults to CTRL when the key is absent.
@@ -250,7 +250,7 @@ Do not use the app-only update on a stock image, a wokka1 image, or an upstream 
 - **More than one CH340.** Unplug the others. The installer will not guess when several are present.
 - **Port busy.** Quit HD2 Macropad Link from the tray and close any serial monitor or esptool. Exit code 3 means the port is busy or Link is still running.
 - **921600.** Do not use it. It corrupts reads on this CH340K. The installer and the scripts refuse it. Use 460800, or 115200 if that fails.
-- **First install versus update.** Back up and install is for a stock or wrong layout. It writes the bootloader, partition table, and app, and it does not write NVS. Check for firmware update / the local test package is for a board that already runs HD2. That one writes only `0x10000` and keeps presets.
+- **First install versus update.** Back up and install is for a stock or wrong layout. It writes the bootloader, partition table, app, and sounds, and it does not write NVS. Do not use it on a board that already runs HD2. Check for firmware update / the local test package is that path. It writes only `0x10000` and keeps presets and the sound partition already on the chip.
 - **Rollback.** If the installer started a write and the check failed, it puts the backup bytes back over the regions it changed and leaves NVS alone. If the screen stays blank, write the full-flash backup at `0x0` as in Recovery. Do not mass-erase to "start clean" unless you already have that backup and you typed `ERASE` in `flash_COM5.bat` on purpose.
 - **Sending a failure log.** In the installer, **Send the log for checking** opens a GitHub issue with a short summary and opens the log folder. Drag the log onto the issue. Do not paste the folder path. It contains your Windows user name.
 - **Windows only.** The one-file installer is a Windows exe. The recovery scripts are Windows batch files. Building the firmware with PlatformIO is separate and is not required to run the exe.
@@ -275,7 +275,7 @@ c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63  SHA-256
 2462928 bytes  tools/crowpanel/test-package/hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin
 ```
 
-`link/res.rc` now says 1.2.4, so a new Link build will not match `28702e8f...` or the earlier v1.2 cross-build.
+`link/res.rc` now says 1.2.5, so a new Link build will not match `28702e8f...` or the earlier v1.2 cross-build.
 
 ## Behaviour carried over from the tested cp7.2 port
 
@@ -288,12 +288,12 @@ c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63  SHA-256
 
 ## What has and has not been run on hardware
 
-The app-only updater in v1.2.3 was run on Evan's CrowPanel Advance 7.0, already on `v1.9.1-cp7.2`, at 460800, with the stub and no ROM fallback. Numbers are in the section above. The stock-board first install (bootloader, partition table, and app, after a 16 MB backup) has not been run on a factory panel. The bootloader inside the exe was rebuilt from this tree's `crowpanel-adv7` sdkconfig (DIO, 80 MHz, 16 MB). The bootloader bytes that were originally on the tested board were not kept. PCB V1.4 and V1.5 have not been tested. The v1.9.1 trigger control and the keymap highlight have not been confirmed on this panel. Bluetooth was not removed.
+The app-only updater in v1.2.3 was run on Evan's CrowPanel Advance 7.0, already on `v1.9.1-cp7.2`, at 460800, with the stub and no ROM fallback. Numbers are in the section above. The stock-board first install (bootloader, partition table, app, and sounds, after a 16 MB backup) has not been run on a factory panel. Do not run Back up and install on a board that already runs HD2. The bootloader inside the exe was rebuilt from this tree's `crowpanel-adv7` sdkconfig (DIO, 80 MHz, 16 MB). The bootloader bytes that were originally on the tested board were not kept. PCB V1.4 and V1.5 have not been tested. The v1.9.1 trigger control and the keymap highlight have not been confirmed on this panel. Bluetooth was not removed.
 
 Do not tag a release or run `.github/workflows/main.yml` until a stock-board install and the checks below have been seen on the commit you would ship:
 
 1. About shows `v1.9.1-cp7.2`, the original credits, and `github.com/unic8s/hd2_macropad`.
 2. The Link tooltip shows the CH340 port, a press works, and the first press after a few minutes idle still works.
 3. Assign a stratagem, including TD-110 Maelstrom, with trigger CTRL and again with ALT.
-4. DIP S1=0, S0=0, PH2.0 speaker on SPK, mute off. Sounds need the assets partition, which the first-install exe does not write.
+4. DIP S1=0, S0=0, PH2.0-2P speaker on SPK, mute off. v1.2.5 writes the sound partition. Hearing it still needs that speaker.
 5. Confirm the keymap dropdown highlight.

@@ -504,7 +504,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
                 CreateDirectoryW(path, NULL);
                 _snwprintf(path, MAX_PATH, L"%s\\HD2MacropadLink\\link.log", dir);
                 g_log = _wfopen(path, L"a");
-                log_line("HD2 Macropad Link v1.2.4 started");
+                log_line("HD2 Macropad Link v1.2.5 started");
             }
         }
     }
