@@ -3,8 +3,10 @@ setlocal EnableExtensions
 title HD2 Macropad CrowPanel - backup flash
 cd /d "%~dp0"
 rem Read-only 16 MB backup. Does not erase or write the board.
+rem The first-install exe also takes this backup before it writes.
 rem Usage: backup_COM5.bat [COMx] [baud] [outfile]
 rem Baud must be 115200, 230400, or 460800. 921600 is refused.
+rem COM5 is only the default. Pass the port Windows actually assigned.
 
 set "PORT=%~1"
 if "%PORT%"=="" set "PORT=COM5"
@@ -28,6 +30,9 @@ echo === Closing HD2 Macropad Link so %PORT% is free ===
 taskkill /im HD2MacropadLink.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.1.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.2.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.3.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.4.exe /f >nul 2>&1
 timeout /t 2 /nobreak >nul
 
 echo.
@@ -46,6 +51,7 @@ if errorlevel 1 goto failed
 echo.
 echo Backup written: %CD%\%OUT%
 echo Keep this file somewhere other than the only copy on the PC.
+if /I "%~4"=="NOPAUSE" exit /b 0
 pause
 exit /b 0
 

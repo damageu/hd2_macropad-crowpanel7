@@ -7,3 +7,9 @@
 src/version.h
 dependencies.lock
 eez/HD2 Macropad.eez-project-ui-state
+link/*.exe
+link/*.o
+link/test_core
+link/test_update
+link/test_romflash
+link/test_romflash_big

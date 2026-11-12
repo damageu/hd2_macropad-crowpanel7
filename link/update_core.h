@@ -98,4 +98,9 @@ int upd_range_is_app_slot(uint32_t offset, uint32_t len);
 /* Compare a device version string with the package version.
  * allow_same is only for an explicit test-package reinstall. */
 int upd_decide(const char *device_ver, const upd_manifest *pkg, int allow_same, char *err, size_t err_cap);
+
+/* 1 if release_ver is a published cp7 package that should be offered: newer than
+ * device_ver when that is known, and not equal to skipped_ver. An empty
+ * device_ver still offers the release once, until it is skipped. */
+int upd_should_offer(const char *device_ver, const char *release_ver, const char *skipped_ver);
 #endif

@@ -37,6 +37,8 @@ DEFINE_GUID(GUID_DEVINTERFACE_COMPORT_LOCAL, 0x86E0D1E0, 0x8089, 0x11D0, 0x9C, 0
 #define ID_EXIT       1002
 #define ID_UPDATE     1003
 #define ID_TESTPKG    1004
+#define ID_STARTUP_UPD 1005
+#define ID_INSTALL    1006
 
 static HWND g_hwnd;
 static NOTIFYICONDATAW g_nid;
@@ -410,7 +412,9 @@ static void show_menu(HWND hwnd)
     AppendMenuW(m, MF_STRING | MF_GRAYED, 0, st);
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
     AppendMenuW(m, MF_STRING | (autostart_enabled() ? MF_CHECKED : 0), ID_AUTOSTART, L"Start with Windows");
+    AppendMenuW(m, MF_STRING | (link_updater_startup_enabled() ? MF_CHECKED : 0), ID_STARTUP_UPD, L"Check for updates at startup");
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(m, MF_STRING, ID_INSTALL, L"Install firmware on a new board...");
     AppendMenuW(m, MF_STRING, ID_UPDATE, L"Check for firmware update...");
     AppendMenuW(m, MF_STRING, ID_TESTPKG, L"Install local test package...");
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
@@ -431,9 +435,14 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_STATUS:
         tray_update();
         return 0;
+    case WM_LINK_UPDATE_AVAILABLE:
+        link_updater_handle_offer(hwnd, (char *)lp);
+        return 0;
     case WM_COMMAND:
         if (LOWORD(wp) == ID_AUTOSTART) autostart_set(!autostart_enabled());
+        if (LOWORD(wp) == ID_STARTUP_UPD) link_updater_startup_set(!link_updater_startup_enabled());
         if (LOWORD(wp) == ID_UPDATE) link_updater_check_stable(hwnd);
+        if (LOWORD(wp) == ID_INSTALL) link_install_show(hwnd, 0);
         if (LOWORD(wp) == ID_TESTPKG) link_updater_local_package(hwnd);
         if (LOWORD(wp) == ID_EXIT) DestroyWindow(hwnd);
         return 0;
@@ -449,6 +458,11 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
 {
     (void)hp; (void)cmd; (void)show;
+    int cli;
+    cli = link_install_cli(GetCommandLineW());
+    if (cli >= 0) return cli; /* headless --install: no tray */
+    cli = link_updater_cli(GetCommandLineW());
+    if (cli >= 0) return cli; /* headless --update / --probe: no tray, no dialogs */
     HANDLE mtx = CreateMutexW(NULL, TRUE, L"Local\\HD2MacropadLink");
     if (GetLastError() == ERROR_ALREADY_EXISTS) return 0;   /* already running */
 
@@ -467,7 +481,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
 #endif
     {
         typedef BOOL (WINAPI *SPI_t)(HANDLE, int, LPVOID, DWORD);
-        SPI_t spi = (SPI_t)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetProcessInformation");
+        SPI_t spi = (SPI_t)(void (*)(void))GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetProcessInformation");
         PROCESS_POWER_THROTTLING_STATE ps = {PROCESS_POWER_THROTTLING_CURRENT_VERSION,
             PROCESS_POWER_THROTTLING_EXECUTION_SPEED | PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION, 0};
         if (spi) spi(GetCurrentProcess(), ProcessPowerThrottling, &ps, sizeof(ps));
@@ -490,7 +504,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
                 CreateDirectoryW(path, NULL);
                 _snwprintf(path, MAX_PATH, L"%s\\HD2MacropadLink\\link.log", dir);
                 g_log = _wfopen(path, L"a");
-                log_line("HD2 Macropad Link v1.2 started");
+                log_line("HD2 Macropad Link v1.2.4 started");
             }
         }
     }
@@ -503,6 +517,9 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
     RegisterClassW(&wc);
     g_hwnd = CreateWindowW(wc.lpszClassName, APP_NAME, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, hi, NULL);
 
+    if (link_install_should_prompt())
+        link_install_show(g_hwnd, 1);
+
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize = sizeof(g_nid);
     g_nid.hWnd = g_hwnd;
@@ -513,6 +530,9 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
     if (!g_nid.hIcon) g_nid.hIcon = LoadIconW(NULL, (LPCWSTR)IDI_APPLICATION);
     lstrcpynW(g_nid.szTip, L"HD2 Macropad Link: starting", 128);
     Shell_NotifyIconW(NIM_ADD, &g_nid);
+
+    /* Once per launch, and only if the tray toggle is on (default on). */
+    link_updater_startup_check(g_hwnd);
 
     HANDLE th = CreateThread(NULL, 0, worker, NULL, 0, NULL);
 

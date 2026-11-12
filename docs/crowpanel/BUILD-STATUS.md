@@ -1,6 +1,8 @@
 # Build record for this import
 
-No board was flashed. No tag was created. No GitHub Release was published. The firmware files below were build products on the review machine and are not committed.
+This file is the record of the import build. Later hardware results for the v1.2.3 app updater, and the v1.2.4 Windows first-install program, are in `docs/crowpanel/README.md`. No tag and no GitHub Release were created for either.
+
+No board was flashed for this import build. No tag was created. No GitHub Release was published. The firmware files below were build products on the review machine and are not committed.
 
 ## Firmware
 

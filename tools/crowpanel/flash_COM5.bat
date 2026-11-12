@@ -2,11 +2,13 @@
 setlocal EnableExtensions
 title HD2 Macropad v1.9.1-cp7.2 - FULL flash (erases presets)
 cd /d "%~dp0"
-rem Erases the whole chip, then writes the merged image at 0x0.
+rem Advanced recovery. Not the normal first install.
+rem The normal first install is HD2MacropadLink-v1.2.4.exe.
+rem This script always backs up 16 MB first. If that fails, it stops.
+rem It erases the chip only after you type ERASE. There is no skip.
 rem Usage: flash_COM5.bat [COMx] [baud]
-rem Default port is COM5. Default baud is 460800, then 115200.
-rem 921600 is refused. Close HD2 Macropad Link first; this script closes it too.
-rem Back up first. A full erase deletes NVS presets and settings.
+rem Default port is COM5 only because that was the maintainer's port.
+rem Default baud is 460800, then 115200. 921600 is refused.
 
 set "PORT=%~1"
 if "%PORT%"=="" set "PORT=COM5"
@@ -26,35 +28,34 @@ if not exist "%BIN%" (
 call :findpython
 if errorlevel 1 exit /b 1
 
-echo This ERASES the whole board on %PORT%, including presets and settings.
-echo Connectivity will have to be set back to USB afterwards.
-echo To keep presets, close this window and run update_COM5.bat.
+echo This is the advanced full-erase path, not the normal first install.
+echo The normal first install is HD2MacropadLink-v1.2.4.exe. It does not mass-erase.
+echo This script will read a 16 MB backup of %PORT% first.
+echo If that backup fails, nothing is erased.
+echo A full erase deletes presets and settings. Connectivity must be set back to USB.
 echo Do not flash an upstream JC3248 install.bin onto this 7 inch board.
 echo.
-set /p DOBACKUP=Backup the whole 16 MB flash before erasing? [Y/n] 
-if /I "%DOBACKUP%"=="n" goto nobackup
-call "%~dp0backup_COM5.bat" "%PORT%" "%BAUD%"
+echo === Backing up 16 MB before any erase ===
+call "%~dp0backup_COM5.bat" "%PORT%" "%BAUD%" "" NOPAUSE
 if errorlevel 1 (
-  echo Backup failed. Nothing further was written by this script.
+  echo Backup failed. Nothing was erased.
   exit /b 1
 )
-echo Backup step finished. Continuing with the erase.
-goto erased
-
-:nobackup
-echo Type ERASE to continue without a backup.
+echo.
+echo Backup step finished. Type ERASE to erase the chip. Anything else cancels.
 set /p CONFIRM=
 if /I not "%CONFIRM%"=="ERASE" (
   echo Cancelled. Nothing was erased.
   exit /b 1
 )
-
-:erased
 echo.
 echo === Closing HD2 Macropad Link so %PORT% is free ===
 taskkill /im HD2MacropadLink.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.1.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.2.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.3.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.4.exe /f >nul 2>&1
 timeout /t 2 /nobreak >nul
 
 echo.
@@ -102,14 +103,11 @@ pause
 exit /b 1
 
 :startlink
-if exist "%~dp0HD2MacropadLink-v1.1.exe" (
-  echo Starting HD2MacropadLink-v1.1.exe ...
-  start "" "%~dp0HD2MacropadLink-v1.1.exe"
-) else if exist "%~dp0HD2MacropadLink.exe" (
-  echo Starting HD2MacropadLink.exe ...
-  start "" "%~dp0HD2MacropadLink.exe"
+if exist "%~dp0HD2MacropadLink-v1.2.4.exe" (
+  echo Starting HD2MacropadLink-v1.2.4.exe ...
+  start "" "%~dp0HD2MacropadLink-v1.2.4.exe"
 ) else (
-  echo Link app not next to this script. Start HD2 Macropad Link v1.1 yourself.
+  echo Link exe not next to this script. Start HD2MacropadLink-v1.2.4.exe yourself.
 )
 exit /b 0
 

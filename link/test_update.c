@@ -136,6 +136,15 @@ int main(void)
     expect(upd_range_is_app_slot(0x10000, UPD_FACTORY_SIZE), "full factory slot");
     expect(!upd_range_is_app_slot(0x10000, UPD_FACTORY_SIZE + 1), "past assets");
 
+    expect(upd_should_offer("v1.8.6-cp7.2", "v1.9.1-cp7.2", NULL), "newer than board");
+    expect(!upd_should_offer("v1.9.1-cp7.2", "v1.9.1-cp7.2", NULL), "same as board");
+    expect(!upd_should_offer("v1.9.1-cp7.2", "v1.8.6-cp7.2", NULL), "older than board");
+    expect(upd_should_offer("", "v1.9.1-cp7.2", NULL), "unknown board still offers");
+    expect(upd_should_offer(NULL, "v1.9.1-cp7.2", ""), "null board still offers");
+    expect(!upd_should_offer("", "v1.9.1-cp7.2", "v1.9.1-cp7.2"), "skipped this version");
+    expect(upd_should_offer("v1.8.6-cp7.2", "v1.9.2-cp7.2", "v1.9.1-cp7.2"), "newer than skipped");
+    expect(!upd_should_offer("", "v1.9.1", NULL), "reject non-cp7 release tag");
+
     if (g_fail) {
         fprintf(stderr, "%d failures\n", g_fail);
         return 1;

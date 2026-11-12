@@ -749,3 +749,16 @@ int upd_decide(const char *device_ver, const upd_manifest *pkg, int allow_same, 
     set_err(err, err_cap, "refusing to downgrade the firmware");
     return UPD_DOWNGRADE;
 }
+
+int upd_should_offer(const char *device_ver, const char *release_ver, const char *skipped_ver)
+{
+    upd_ver rel, dev, skip;
+    if (!release_ver || !upd_ver_parse(release_ver, &rel)) return 0;
+    if (skipped_ver && skipped_ver[0] && upd_ver_parse(skipped_ver, &skip) && upd_ver_cmp(rel, skip) == 0)
+        return 0;
+    if (device_ver && device_ver[0]) {
+        if (!upd_ver_parse(device_ver, &dev)) return 0;
+        return upd_ver_cmp(rel, dev) > 0;
+    }
+    return 1;
+}
