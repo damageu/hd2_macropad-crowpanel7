@@ -1,3 +1,4 @@
+#ifndef BOARD_CROWPANEL_ADV7
 #include <stdlib.h>
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -145,3 +146,4 @@ esp_err_t usb_controller_deinit()
 
     return ret;
 }
+#endif /* !BOARD_CROWPANEL_ADV7 */

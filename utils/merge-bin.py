@@ -17,6 +17,15 @@ def merge_bin_action(source, target, env):
         "$ESP32_APP_OFFSET",
         source[0].get_abspath(),
     ]
+    # Optional extra "<offset> <file>" pairs, e.g. the CrowPanel read-only FAT assets image:
+    # MERGE_EXTRA_IMAGES="0xa10000 /path/assets.img"
+    extra = os.environ.get("MERGE_EXTRA_IMAGES", "").split()
+    if len(extra) % 2:
+        raise ValueError("MERGE_EXTRA_IMAGES must be <offset> <file> pairs")
+    for i in range(0, len(extra), 2):
+        if not os.path.isfile(extra[i + 1]):
+            raise FileNotFoundError(extra[i + 1])
+        flash_images += [extra[i], '"%s"' % extra[i + 1]]
     merge_cmd = " ".join(
         [
             '"$PYTHONEXE"',

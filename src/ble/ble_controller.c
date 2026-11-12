@@ -146,8 +146,26 @@ void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         {
             ESP_LOGE(TAG_BLE, "fail reason = 0x%x", param->ble_security.auth_cmpl.fail_reason);
         }
+        else
+        {
+            // Ask the host for a fast connection interval (7.5-15 ms, no slave latency).
+            // Hosts often open HID links at 30-50 ms; every key press and release waits
+            // for the next connection event, which is where the Bluetooth input lag came from.
+            esp_ble_conn_update_params_t conn_params = {0};
+            memcpy(conn_params.bda, bd_addr, sizeof(esp_bd_addr_t));
+            conn_params.min_int = 0x06; // x 1.25 ms = 7.5 ms
+            conn_params.max_int = 0x0C; // x 1.25 ms = 15 ms
+            conn_params.latency = 0;
+            conn_params.timeout = 400;  // x 10 ms = 4 s
+            esp_ble_gap_update_conn_params(&conn_params);
+        }
 
         updateConnection();
+        break;
+    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
+        ESP_LOGI(TAG_BLE, "conn params: status %d, interval %d x 1.25 ms, latency %d, timeout %d",
+                 param->update_conn_params.status, param->update_conn_params.conn_int,
+                 param->update_conn_params.latency, param->update_conn_params.timeout);
         break;
     default:
         break;
