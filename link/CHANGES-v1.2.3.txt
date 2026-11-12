@@ -1,0 +1,102 @@
+Link v1.2.3 (incorporated with the v1.2.6 first-install exe; not a release tag)
+============================================================
+
+The notes below were written before the hardware run. That run, on Evan's
+board at 460800 with the stub and no ROM fallback, measured a reinstall at
+34.3 s total (write 23.3 s) and a full app-backup run at 93.1 s (read 62.6 s).
+App MD5 b0f9ebf600521d2c1fc9fd884a5e34df. See docs/crowpanel/README.md.
+The Windows exe in this tree is v1.2.6: the v1.2.3 updater, the first-install
+window from v1.2.4, and the sound partition at 0xA10000. v1.2.4 did not write
+sounds. v1.2.5 wrote the sounds into the package but stopped after the 16 MB
+backup because the file was opened write-only. v1.2.6 re-reads that backup
+and continues. The v1.2.5 sidecar hashed the digest instead of encoding it.
+
+Why: v1.2.2 installed correctly on 11 Nov 2026 but took a painfully long
+time. It was ROM-only: the ROM bootloader reads flash in 64-byte chunks,
+writes uncompressed 1 KB blocks, and v1.2.2 verified by reading all 2.4 MB
+back, with a log line per packet. The bootloader baud was not the main
+problem; the ROM protocol was.
+
+What changed (updater only; Link's macropad protocol is unchanged)
+1. Flasher stub. After the unchanged v1.2.2 connect (ClassicReset, SYNC
+   retries, drain of the 7 extra SYNC replies), Link uploads Espressif's
+   ESP32-S3 flasher stub with MEM_BEGIN/MEM_DATA/MEM_END, waits for the
+   stub's "OHAI" frame, then CHANGE_BAUD(460800, 115200). 921600 is never
+   used. Then SPI_SET_PARAMS (16 MB).
+2. Backup. Board MD5 (SPI_FLASH_MD5 0x13) of the installed app first. If it
+   equals the package (reinstall) or a file in backups\ (earlier backup or
+   installed-<ver>.bin), that file is the backup (MD5-checked). Otherwise
+   stub READ_FLASH (0xD2) with per-packet acks and the stub's MD5 digest,
+   cross-checked with SPI_FLASH_MD5. The backup .bin + .sha256 is written to
+   %LOCALAPPDATA%\HD2MacropadLink\backups\ before anything is erased, as
+   before. After each verified install, backups\installed-<ver>.bin is kept
+   so later updates usually skip the 2.4 MB read.
+3. Write. zlib-compressed FLASH_DEFL_BEGIN/DATA/END (0x10/0x11/0x12), 16 KB
+   blocks, app region at 0x10000 only. NVS and presets untouched. The real
+   v1.9.1-cp7.2 image is 2,462,928 bytes -> 983,226 bytes on the wire.
+   Before sending, Link inflates its own stream to check it.
+4. Verify. SPI_FLASH_MD5 of 0x10000 over the image length (one reconnect
+   retry). The post-reset version confirmation is kept.
+5. Rollback with the backup on any write or verify failure (same write and
+   MD5 verify path).
+6. Automatic fallback: if the stub upload, OHAI, baud change or any stub I/O
+   fails before anything was written, Link logs "FALLBACK: ..." and reruns
+   the complete v1.2.2 ROM path. RomOnly=1 / --rom-only forces it.
+7. Progress per phase in the UI (Backup / Write / Verify with KB and %).
+   The log gets "phase X done: N bytes in s (KB/s)" lines and ~64 KB
+   summaries instead of per-packet lines. Final "finished ..." log line with
+   all per-phase milliseconds.
+8. Serial reads are buffered (64 KB, ClearCommError queue size) instead of
+   one ReadFile per byte; SetupComm 64 KB buffers.
+9. Headless CLI (new):
+     --update <crowpanel-update.json> --port COMn [--reinstall] --yes
+       [--log-stdout] [--full-backup] [--rom-only] [--dry-run] [--result-file f]
+     --probe --port COMn [--log-stdout] [--rom-only] [--result-file f]
+   No dialogs. PROGRESS lines, optional LOG lines, one final machine-readable
+   RESULT / PROBE line. Exit codes 0 ok, 1 failed, 2 usage, 3 port busy or
+   Link running, 4 bad package. --probe is read-only: connect, stub, chip
+   info, MD5 of 0x10000 over the app length, version, hard reset back to the
+   app. Writing requires --yes. Refuses while the tray Link is running.
+10. Registry switches FullBackup and RomOnly (HKCU\Software\HD2MacropadLink).
+11. Resource version 1.2.3; Windows build is now -Werror clean (one
+    pre-existing FARPROC cast warning fixed).
+
+Licence finding
+- The repository (unic8s/hd2_macropad and the fork) is CC BY-NC 4.0.
+- esptool 5.2.0 ships two stubs:
+    stub_flasher/1 (default; esptool-legacy-flasher-stub v1.11.1):
+      GPL-2.0-or-later. Embedding that binary in a CC BY-NC exe would bring
+      GPL obligations (source offer, GPL terms for the combined work) that
+      CC BY-NC cannot satisfy. NOT used.
+    stub_flasher/2 (espressif/esp-flasher-stub v0.2.0):
+      Apache-2.0 OR MIT. Permissive; compatible with distribution inside a
+      CC BY-NC program as long as the notice is kept. USED.
+- miniz 3.0.2 (compression): MIT. Used.
+- Notices: link/THIRD-PARTY-NOTICES.txt (+ third_party/*/LICENSE*),
+  header comment in stub_esp32s3.h, and a copy in this bundle.
+- Trade-off: stub v2 is newer and is not esptool's default (esptool needs a
+  hidden --stub-version 2 option to use it). Its wire protocol was
+  cross-checked against esptool's own code, but it has not been run on this
+  board yet. See TEST-STEPS.txt section C for a read-only esptool check.
+- Not legal advice; if Evan ever wants the GPL stub instead, the exe would
+  need to be distributed under GPL-compatible terms or ship the stub
+  separately.
+
+Tests (all on the box, Linux, gcc -Wall -Wextra -Werror)
+- test_core ok, test_update ok, test_romflash ok (all v1.2.2 ROM tests
+  still pass; they now also exercise "stub rejected -> ROM fallback").
+- New mock-board tests: stub upload (2 segments, checksums), OHAI, CHANGE_BAUD
+  new+old, SPI_SET, READ_FLASH acks + digest, FLASH_DEFL (inflated by the
+  mock with miniz), SPI_FLASH_MD5 verify, reinstall from package, local
+  backup match / mismatch, FullBackup, RomOnly, no OHAI -> ROM, MEM_BEGIN
+  rejected -> ROM, baud rejected -> ROM, bad READ_FLASH digest -> ROM rerun,
+  MD5 mismatch after write -> rollback, DEFL error -> rollback, downgrade
+  refused, stub dry run, probe (stub and ROM fallback).
+- Real image: the 2.4 MB v1.9.1-cp7.2 app through the mock stub (upgrade
+  and reinstall): byte-exact, 61 DEFL blocks, MD5 b0f9ebf6...
+- wire_crosscheck.py: 33 stub-path packets byte-identical to esptool 5.2.0
+  ESP32S3ROM/ESP32S3StubLoader (stub v2) output; DEFL stream inflates to
+  the image with Python zlib.
+- Windows exe: llvm-mingw cross-compile, -Werror, imports msvcrt.dll only
+  from the CRT. NOT run on Windows or hardware (no Windows box; the CLI,
+  buffered serial reads and console output are untested at runtime).

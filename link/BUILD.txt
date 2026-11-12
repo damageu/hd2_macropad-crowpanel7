@@ -1,28 +1,125 @@
-HD2 Macropad Link v1.1
-=======================
+HD2 Macropad Link v1.2.6
+========================
 
-Windows tray app for the CrowPanel Advance 7.0 USB-serial link.
-Protocol UART rate: 115200. Do not change that to the esptool flash baud.
+Windows tray app and first-install program for the CrowPanel Advance 7.0
+USB-serial link. The updater core is v1.2.3 (flasher stub, compressed writes,
+MD5 verify, ROM fallback, headless CLI). v1.2.4 added the stock-board install
+window. v1.2.5 added the 4 MB sound partition. On a real panel it saved the
+16 MB backup and then stopped, because that file was opened write-only.
+v1.2.6 opens it for reading too, so first install continues, and its sidecar
+is the SHA-256 of the file. The two exes stay distinguishable. Protocol UART rate: 115200. The updater's bootloader
+baud is at most 460800 (never 921600: it corrupts on the CrowPanel's CH340K).
+Those are different settings.
 
-The firmware side lives in the repository root, environment crowpanel-adv7.
-See docs/crowpanel/README.md. Close this app before flashing the board.
+The updater does not replace this exe. A future Link update is a new build
+of these sources, installed by hand. It does not download or run a new exe.
 
-Build (MinGW-w64, from this directory):
+Build (llvm-mingw or MinGW-w64, from this directory; build.sh does all of it):
 
     x86_64-w64-mingw32-windres res.rc -O coff -o res.o
-    x86_64-w64-mingw32-gcc -O2 -municode -mwindows hd2link.c res.o -o HD2MacropadLink-v1.1.exe -lsetupapi -lwinmm -static
+    x86_64-w64-mingw32-gcc -Wall -Wextra -O2 ^
+      -DMINIZ_NO_STDIO -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_TIME -DMINIZ_NO_ZLIB_COMPATIBLE_NAMES ^
+      -c third_party\miniz\miniz.c -o miniz.o
+    x86_64-w64-mingw32-gcc -Wall -Wextra -Werror -O2 ^
+      -DMINIZ_NO_STDIO -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_TIME -DMINIZ_NO_ZLIB_COMPATIBLE_NAMES ^
+      -municode -mwindows ^
+      hd2link.c updater_win.c install_win.c romflash.c update_core.c sha256.c md5.c backup_io.c miniz.o res.o ^
+      -o HD2MacropadLink-v1.2.6.exe -lsetupapi -lwinmm -lwinhttp -lcomdlg32 -lshell32 -static
 
-Linux unit test (parser and scancode map only; no Windows APIs):
+Linux tests (no Windows APIs, no serial hardware):
 
-    gcc -Wall -Wextra -O2 -o test_core test_core.c && ./test_core
+    MZ="-DMINIZ_NO_STDIO -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_TIME -DMINIZ_NO_ZLIB_COMPATIBLE_NAMES"
+    gcc -Wall -Wextra -Werror -O2 -o test_core test_core.c && ./test_core
+    gcc -Wall -Wextra -Werror -O2 -o test_update test_update.c update_core.c sha256.c && ./test_update
+    gcc -Wall -Wextra -Werror -O2 $MZ -o test_romflash test_romflash.c romflash.c update_core.c sha256.c md5.c \
+        third_party/miniz/miniz.c && ./test_romflash
+    # optional: the real 2.4 MB image through the emulated stub
+    gcc -Wall -Wextra -Werror -O2 $MZ -DTEST_MEM=0x400000 -o test_romflash_big test_romflash.c romflash.c \
+        update_core.c sha256.c md5.c third_party/miniz/miniz.c && HD2_REAL_IMAGE=<app .bin> ./test_romflash_big
+    # HD2_TEST_LOG=1 prints the updater log of every test case.
 
-The previously tested executable was named HD2MacropadLink-v1.1.exe.
-Its resource version was 1.0.0 because res.rc had not been bumped.
-This tree's res.rc says 1.1.0 so a rebuild is identifiable.
-A rebuild will not match the old executable's checksum.
+Wire-format cross-check against esptool (needs esptool 5.2.0 in a venv):
 
-Optional diagnostic log, off unless this registry value is set:
+    python3 -m venv /tmp/etvenv && /tmp/etvenv/bin/pip install esptool==5.2.0
+    /tmp/etvenv/bin/python wire_crosscheck.py
+    # Runs test_romflash with HD2_WIRE_DUMP, then rebuilds every stub-path packet
+    # (MEM_BEGIN/DATA/END, CHANGE_BAUD, SPI_SET, READ_FLASH + acks, SPI_FLASH_MD5,
+    # FLASH_DEFL_BEGIN/DATA/END) with esptool's own ESP32S3ROM / ESP32S3StubLoader
+    # code and requires byte-identical frames.
 
-    reg add HKCU\Software\HD2MacropadLink /v Log /t REG_DWORD /d 1
+Regenerating the stub header (only when moving to a newer stub release):
 
-The log is written under %LOCALAPPDATA%\HD2MacropadLink\link.log.
+    python3 gen_stub.py third_party/esp-flasher-stub/esp32s3.json > stub_esp32s3.h
+
+The Windows program is HD2MacropadLink-v1.2.6.exe. v1.2.6 is the v1.2.3
+updater plus a first-install window in the same file. The resource version
+is 1.2.6. Link pacing is unchanged: 30 ms hold, 8 ms gap. Flash baud is still
+at most 460800.
+
+v1.2.3 updater (fast path):
+- Connects exactly as v1.2.2 (ClassicReset, SYNC retries, drains the 7 extra
+  SYNC replies), then uploads the ESP32-S3 flasher stub (esp-flasher-stub
+  v0.2.0, MIT/Apache) with MEM_BEGIN/MEM_DATA/MEM_END, waits for "OHAI", and
+  switches to 460800 with CHANGE_BAUD(new, old).
+- Backup: board MD5 (SPI_FLASH_MD5) of the installed app first. If it equals
+  the package (reinstall) or a file in backups\ (earlier backup or the
+  installed-<ver>.bin copy kept after every verified install), the backup is
+  taken from that file, checked by MD5. Otherwise a full READ_FLASH with acks,
+  checked by the stub's MD5 digest and SPI_FLASH_MD5. The backup .bin + .sha256
+  is always written before anything is erased.
+- Write: zlib-compressed FLASH_DEFL_BEGIN/DATA/END to 0x10000 only (app
+  region; NVS and presets untouched).
+- Verify: SPI_FLASH_MD5 of 0x10000 over the image length (no full readback),
+  then the post-reset version confirmation as before.
+- Rollback with the backup on any write/verify failure.
+- If the stub cannot be loaded (no OHAI, upload rejected, baud rejected, or a
+  stub I/O failure before anything was written) the updater logs FALLBACK and
+  reruns the whole v1.2.2 ROM-only path automatically.
+- Progress per phase (Backup / Write / Verify) in the UI; the log has phase
+  durations and throughput and summaries every ~64 KB instead of per packet.
+
+Registry switches (HKCU\Software\HD2MacropadLink, REG_DWORD, default 0):
+    FullBackup=1  always read the full app from the board for the backup
+    RomOnly=1     skip the stub; use the v1.2.2 ROM-only path
+    Log=1         diagnostic link.log (unchanged)
+
+Headless CLI (no dialogs):
+    HD2MacropadLink-v1.2.6.exe --update <crowpanel-update.json> --port COM5 [--reinstall] --yes
+        [--log-stdout] [--full-backup] [--rom-only] [--dry-run] [--result-file <path>]
+    HD2MacropadLink-v1.2.6.exe --probe --port COM5 [--log-stdout] [--rom-only] [--result-file <path>]
+    HD2MacropadLink-v1.2.6.exe --install [--port COMn] --yes
+        [--dry-run] [--log-stdout] [--rom-only] [--result-file <path>]
+Exit codes: 0 ok, 1 failed, 2 usage, 3 port busy or Link running, 4 bad package.
+
+--install is the stock-board first install. It reads 16 MB from address 0
+before it writes the bootloader (0x0), the partition table (0x8000), the
+app (0x10000), and the assets FAT (0xA10000, 4 MB, compressed). It does not
+mass-erase and it does not write NVS. Omit --port when exactly one CH340 is
+plugged in. --yes is required to write. --dry-run only saves the 16 MB backup.
+Quit the tray app first. The 16 MB backup plus the sound write takes several
+minutes. Do not run --install on a board that already runs HD2.
+
+The exe embeds these images:
+    firmware/bootloader.bin     rebuilt from this tree's crowpanel-adv7
+                                sdkconfig (DIO, 80 MHz, 16 MB). The original
+                                bootloader bytes from the tested board were
+                                not archived.
+    firmware/partitions.bin     python3 gen_partitions.py
+    ../tools/crowpanel/test-package/hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin
+                                MD5 b0f9ebf600521d2c1fc9fd884a5e34df
+                                SHA-256 c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63
+    firmware/assets_fat_0xa10000.img
+                                4194304 bytes at 0xA10000
+                                MD5 56ad5746c2f2940c636553dcdcae383e
+                                SHA-256 d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10
+Do not replace the app bin or the assets image with a later rebuild.
+v1.2.4 is the previous exe and does not contain the sound partition.
+
+Each update writes a timestamped protocol log under
+%LOCALAPPDATA%\HD2MacropadLink\logs\update-<timestamp>.log.
+Firmware backups are written under %LOCALAPPDATA%\HD2MacropadLink\backups\.
+Startup update check, Install now / Later / Skip, and the manual "Check for
+firmware update..." are unchanged from v1.2.2.
+
+Licensing: see THIRD-PARTY-NOTICES.txt. The embedded stub is esp-flasher-stub
+(Apache-2.0 OR MIT), not esptool's default GPL-2.0-or-later stub.

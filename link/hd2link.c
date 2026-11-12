@@ -23,6 +23,7 @@
 #include <mmsystem.h>
 #include <string.h>
 #include "link_core.h"
+#include "updater_ui.h"
 
 DEFINE_GUID(GUID_DEVINTERFACE_COMPORT_LOCAL, 0x86E0D1E0, 0x8089, 0x11D0, 0x9C, 0xE4, 0x08, 0x00, 0x3E, 0x30, 0x1F, 0x73);
 
@@ -34,10 +35,17 @@ DEFINE_GUID(GUID_DEVINTERFACE_COMPORT_LOCAL, 0x86E0D1E0, 0x8089, 0x11D0, 0x9C, 0
 #define WM_STATUS     (WM_APP + 2)
 #define ID_AUTOSTART  1001
 #define ID_EXIT       1002
+#define ID_UPDATE     1003
+#define ID_TESTPKG    1004
+#define ID_STARTUP_UPD 1005
+#define ID_INSTALL    1006
 
 static HWND g_hwnd;
 static NOTIFYICONDATAW g_nid;
 static volatile LONG g_quit = 0;
+static volatile LONG g_hold = 0;
+static volatile LONG g_in_port = 0;
+static wchar_t g_last_port[16];
 static wchar_t g_status[128] = L"Looking for the macropad...";
 static CRITICAL_SECTION g_cs;
 
@@ -257,7 +265,7 @@ static int run_port(HANDLE h, const wchar_t *name, DWORD probe_ms)
     int seen = 0;
     wchar_t msg[128];
 
-    while (!g_quit) {
+    while (!g_quit && !g_hold) {
         DWORD now = GetTickCount();
         if (now - last_ping >= 500 || last_ping == 0) {   /* v1.1: was 1000 */
             if (!send_ping(h)) break;                 /* unplugged */
@@ -273,6 +281,7 @@ static int run_port(HANDLE h, const wchar_t *name, DWORD probe_ms)
                 last_pong = GetTickCount();
                 if (!seen) {
                     seen = 1;
+                    lstrcpynW(g_last_port, name, 16);
                     _snwprintf(msg, 128, L"connected on %s", name);
                     set_status(msg);
                 }
@@ -304,6 +313,11 @@ static DWORD WINAPI worker(LPVOID arg)
     timeBeginPeriod(1);
     wchar_t ports[16][16];
     while (!g_quit) {
+        if (g_hold) {
+            set_status(L"paused for a firmware update");
+            while (g_hold && !g_quit) Sleep(50);
+            continue;
+        }
         int n = find_ports(ports, 16, 1);
         if (n == 0) {
             set_status(L"plug the macropad's USB-C into this PC");
@@ -323,9 +337,15 @@ static DWORD WINAPI worker(LPVOID arg)
             wchar_t msg[128];
             _snwprintf(msg, 128, L"checking %s...", ports[i]);
             set_status(msg);
+            InterlockedExchange(&g_in_port, 1);
             /* Only one CH34x port: it's almost certainly the macropad, so stay on it */
             run_port(h, ports[i], n == 1 ? 0x7FFFFFFF : 3000);
             CloseHandle(h);
+            InterlockedExchange(&g_in_port, 0);
+            if (g_hold) {
+                set_status(L"paused for a firmware update");
+                while (g_hold && !g_quit) Sleep(50);
+            }
         }
         if (!any) Sleep(2000);
         else {
@@ -338,6 +358,50 @@ static DWORD WINAPI worker(LPVOID arg)
 
 /* ---------------------------------------------------------------- window */
 
+int link_pause_for_update(wchar_t *port, size_t port_chars, wchar_t *err, size_t err_chars)
+{
+    wchar_t ports[8][16];
+    int n, i;
+    const wchar_t *chosen = NULL;
+    InterlockedExchange(&g_hold, 1);
+    Sleep(150);
+    for (i = 0; i < 100 && g_in_port; i++) Sleep(50);
+    if (g_in_port) {
+        InterlockedExchange(&g_hold, 0);
+        _snwprintf(err, err_chars, L"The serial connection did not pause. Nothing was written.");
+        return 0;
+    }
+    n = find_ports(ports, 8, 1);
+    if (n <= 0) {
+        InterlockedExchange(&g_hold, 0);
+        _snwprintf(err, err_chars, L"No CH340 serial device is connected. Nothing was written.");
+        return 0;
+    }
+    if (n == 1) {
+        chosen = ports[0];
+    } else {
+        for (i = 0; i < n; i++) {
+            if (g_last_port[0] && wcscmp(ports[i], g_last_port) == 0) chosen = ports[i];
+        }
+        if (!chosen) {
+            InterlockedExchange(&g_hold, 0);
+            _snwprintf(err, err_chars, L"More than one CH340 is connected, and none is the macropad that was answering. Unplug the others. Nothing was written.");
+            return 0;
+        }
+    }
+    if (port_chars < 2) {
+        InterlockedExchange(&g_hold, 0);
+        return 0;
+    }
+    lstrcpynW(port, chosen, (int)port_chars);
+    return 1;
+}
+
+void link_resume_after_update(void)
+{
+    InterlockedExchange(&g_hold, 0);
+}
+
 static void show_menu(HWND hwnd)
 {
     HMENU m = CreatePopupMenu();
@@ -348,6 +412,12 @@ static void show_menu(HWND hwnd)
     AppendMenuW(m, MF_STRING | MF_GRAYED, 0, st);
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
     AppendMenuW(m, MF_STRING | (autostart_enabled() ? MF_CHECKED : 0), ID_AUTOSTART, L"Start with Windows");
+    AppendMenuW(m, MF_STRING | (link_updater_startup_enabled() ? MF_CHECKED : 0), ID_STARTUP_UPD, L"Check for updates at startup");
+    AppendMenuW(m, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(m, MF_STRING, ID_INSTALL, L"Install firmware on a new board...");
+    AppendMenuW(m, MF_STRING, ID_UPDATE, L"Check for firmware update...");
+    AppendMenuW(m, MF_STRING, ID_TESTPKG, L"Install local test package...");
+    AppendMenuW(m, MF_SEPARATOR, 0, NULL);
     AppendMenuW(m, MF_STRING, ID_EXIT, L"Exit");
     POINT pt;
     GetCursorPos(&pt);
@@ -365,8 +435,15 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_STATUS:
         tray_update();
         return 0;
+    case WM_LINK_UPDATE_AVAILABLE:
+        link_updater_handle_offer(hwnd, (char *)lp);
+        return 0;
     case WM_COMMAND:
         if (LOWORD(wp) == ID_AUTOSTART) autostart_set(!autostart_enabled());
+        if (LOWORD(wp) == ID_STARTUP_UPD) link_updater_startup_set(!link_updater_startup_enabled());
+        if (LOWORD(wp) == ID_UPDATE) link_updater_check_stable(hwnd);
+        if (LOWORD(wp) == ID_INSTALL) link_install_show(hwnd, 0);
+        if (LOWORD(wp) == ID_TESTPKG) link_updater_local_package(hwnd);
         if (LOWORD(wp) == ID_EXIT) DestroyWindow(hwnd);
         return 0;
     case WM_DESTROY:
@@ -381,6 +458,11 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
 {
     (void)hp; (void)cmd; (void)show;
+    int cli;
+    cli = link_install_cli(GetCommandLineW());
+    if (cli >= 0) return cli; /* headless --install: no tray */
+    cli = link_updater_cli(GetCommandLineW());
+    if (cli >= 0) return cli; /* headless --update / --probe: no tray, no dialogs */
     HANDLE mtx = CreateMutexW(NULL, TRUE, L"Local\\HD2MacropadLink");
     if (GetLastError() == ERROR_ALREADY_EXISTS) return 0;   /* already running */
 
@@ -399,7 +481,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
 #endif
     {
         typedef BOOL (WINAPI *SPI_t)(HANDLE, int, LPVOID, DWORD);
-        SPI_t spi = (SPI_t)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetProcessInformation");
+        SPI_t spi = (SPI_t)(void (*)(void))GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetProcessInformation");
         PROCESS_POWER_THROTTLING_STATE ps = {PROCESS_POWER_THROTTLING_CURRENT_VERSION,
             PROCESS_POWER_THROTTLING_EXECUTION_SPEED | PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION, 0};
         if (spi) spi(GetCurrentProcess(), ProcessPowerThrottling, &ps, sizeof(ps));
@@ -422,7 +504,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
                 CreateDirectoryW(path, NULL);
                 _snwprintf(path, MAX_PATH, L"%s\\HD2MacropadLink\\link.log", dir);
                 g_log = _wfopen(path, L"a");
-                log_line("HD2 Macropad Link v1.1 started");
+                log_line("HD2 Macropad Link v1.2.6 started");
             }
         }
     }
@@ -435,6 +517,9 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
     RegisterClassW(&wc);
     g_hwnd = CreateWindowW(wc.lpszClassName, APP_NAME, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, hi, NULL);
 
+    if (link_install_should_prompt())
+        link_install_show(g_hwnd, 1);
+
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize = sizeof(g_nid);
     g_nid.hWnd = g_hwnd;
@@ -445,6 +530,9 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE hp, PWSTR cmd, int show)
     if (!g_nid.hIcon) g_nid.hIcon = LoadIconW(NULL, (LPCWSTR)IDI_APPLICATION);
     lstrcpynW(g_nid.szTip, L"HD2 Macropad Link: starting", 128);
     Shell_NotifyIconW(NIM_ADD, &g_nid);
+
+    /* Once per launch, and only if the tray toggle is on (default on). */
+    link_updater_startup_check(g_hwnd);
 
     HANDLE th = CreateThread(NULL, 0, worker, NULL, 0, NULL);
 

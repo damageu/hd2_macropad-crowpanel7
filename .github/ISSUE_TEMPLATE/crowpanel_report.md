@@ -17,13 +17,15 @@ Commit or build you flashed:
 App-only update or full erase:
 
 **Link app**
-v1.1 or another build:
+v1.2.6 (first install and tray) or another build:
 
 Was HD2 Macropad Link closed before esptool ran?
 
-COM port (COM5 is only an example):
+COM port (the installer detects the CH340; COM5 is only an example):
 
 Baud used (115200, 230400, or 460800). Do not use 921600:
+
+If the Windows installer failed, attach `install-*.log` from `%LOCALAPPDATA%\HD2MacropadLink\logs\`. Do not paste the full path. It contains your Windows user name. The installer's **Send the log for checking** button opens a short summary and the log folder.
 
 **Board**
 PCB revision, if printed on the board:

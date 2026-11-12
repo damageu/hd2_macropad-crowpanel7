@@ -1,6 +1,8 @@
 # Build record for this import
 
-No board was flashed. No tag was created. No GitHub Release was published. The firmware files below were build products on the review machine and are not committed.
+This file is the record of the import build. Later hardware results for the v1.2.3 app updater, and the v1.2.6 Windows first-install program, are in `docs/crowpanel/README.md`. No tag and no GitHub Release were created for either.
+
+No board was flashed for this import build. No tag was created. No GitHub Release was published. The firmware files below were build products on the review machine and are not committed.
 
 ## Firmware
 
@@ -87,9 +89,29 @@ That is Ctrl down, then W, S, and D pressed and released, then Ctrl up. A garbag
 
 The Windows executable was not cross-built. MinGW-w64 was not required for the parser test, and no `.exe` is committed. The historical v1.1 executable checksum remains `28702e8f...` and will not match a rebuild, because `link/res.rc` now says 1.1.0.
 
+## Updater rebuild
+
+`boards/crowpanel_adv7.json` now passes `-DPROJECT_VER=v1.9.1-cp7.2`. Rebuilt with `pio run -e crowpanel-adv7` after deleting the previous build directory: SUCCESS in 53.03 seconds. The app descriptor at offset `0x30` is `v1.9.1-cp7.2`, and the same string is also the UI version. `upd_image_length` and `upd_image_version` accept this file.
+
+`firmware.bin` / test-package image: 2462928 bytes, SHA-256 `c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63`.
+
+The earlier hash `18f9d2ad...` was the pre-updater build, whose app descriptor still said `v1.9.1-2-g689c67b-dirty`. Do not flash that file for this test.
+
+Linux tests, all exit 0, no hardware and no serial port:
+
+- `test_core`: `frames=9 pongs=1` and `+01D +011 -011 +01F -01F +020 -020 -01D `
+- `test_update`: manifest schema, hash, downgrade, evil host, prerelease skip, partition layout
+- `test_romflash`: mock ROM. Upgrade keeps the NVS byte, dry run does not call flash-begin, downgrade does not write, a failed write restores the backup, cancel and disconnect happen before any write, a bad partition table never starts a write, and no erase-chip opcode is sent
+
+The real `crowpanel-update.json` in `tools/crowpanel/test-package/` parses as channel `test` and is an upgrade from `v1.8.6-cp7.2`.
+
+`HD2MacropadLink-v1.2.exe` was cross-compiled with `x86_64-w64-mingw32-gcc` 13 on Linux and was not run on Windows. Size 505326 bytes, SHA-256 `b14b0431e13184df4ca36f972dd01106e86795c4fdd388458ee7d08781874655`. The only compiler warning was the existing cast in `wWinMain`.
+
 ## Not done
 
 - No flash of COM5 or any other port
+- The in-app updater was not run against a board or a Windows desktop. Mock serial only
+- No GitHub release exists for the stable button, on purpose
 - No run of `.github/workflows/main.yml`
 - No tag and no GitHub Release
 - The v1.9.1 trigger control and keymap highlight have not been seen on the 7 inch panel
