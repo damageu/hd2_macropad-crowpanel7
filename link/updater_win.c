@@ -232,7 +232,7 @@ static void ser_progress(void *ctx, const char *phase, unsigned done, unsigned t
     }
     if (strcmp(phase, "backup") == 0) {
         label = s->full_chip
-            ? L"Backup: whole 16 MB flash. Expected about 7 to 10 minutes. Wait while the count moves"
+            ? L"Backup: whole 16 MB flash. About 6 minutes 40 seconds on the maintainer PC. Wait while the count moves"
             : L"Backup: saving the current app";
         cli_label = "Backup";
     } else if (strcmp(phase, "write") == 0) { label = L"Write: installing the new app"; cli_label = "Write"; }
@@ -443,7 +443,7 @@ static int winhttp_get(const char *url, uint8_t **out, size_t *out_len, size_t m
         return 0;
     }
     snprintf(current, sizeof current, "%s", url);
-    ses = WinHttpOpen(L"HD2MacropadLink/1.2.5", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    ses = WinHttpOpen(L"HD2MacropadLink/1.2.6", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                       WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!ses) {
         snprintf(err, err_cap, "Windows HTTP could not start");
@@ -843,7 +843,7 @@ static DWORD WINAPI job_thread(LPVOID arg)
         char port8[16];
         char line[200];
         WideCharToMultiByte(CP_UTF8, 0, job->port, -1, port8, (int)sizeof port8, NULL, NULL);
-        ser_log(&ser, "HD2 Macropad Link v1.2.5 updater log");
+        ser_log(&ser, "HD2 Macropad Link v1.2.6 updater log");
         snprintf(line, sizeof line, "port=%s do_write=%d allow_same=%d package=%s full_backup=%d rom_only=%d mode=%s",
                  port8, job->do_write, job->allow_same, job->version ? job->version : "", io.full_backup, io.rom_only,
                  job->cli ? "headless" : "dialog");
@@ -1480,7 +1480,7 @@ static int cli_probe(const wchar_t *port, int log_stdout, int rom_only)
     ser.log_stdout = log_stdout;
     open_update_log(&ser);
     io.rom_only = rom_only || reg_dword(L"RomOnly") != 0;
-    ser_log(&ser, "HD2 Macropad Link v1.2.5 probe log (read-only)");
+    ser_log(&ser, "HD2 Macropad Link v1.2.6 probe log (read-only)");
     rc = rom_probe(&io, &pr);
     w8(ser.log_path, logp, sizeof logp);
     q8(pr.error, errq, sizeof errq);
@@ -1639,7 +1639,7 @@ int link_updater_cli(const wchar_t *cmdline)
     }
     cli_open_stdout();
     if (result_file) g_result_file = _wfopen(result_file, L"w");
-    cli_out("HD2 Macropad Link v1.2.5 headless %s", probe ? "probe (read-only)" : "update");
+    cli_out("HD2 Macropad Link v1.2.6 headless %s", probe ? "probe (read-only)" : "update");
     if (bad || (probe && update) || !cli_port_ok(port) || (update && !yes && !dry)) {
         cli_result("%s rc=2 error=\"usage: --update <crowpanel-update.json> --port COMn [--reinstall] --yes "
                    "[--log-stdout] [--full-backup] [--rom-only] [--dry-run] [--result-file f] | --probe --port COMn "

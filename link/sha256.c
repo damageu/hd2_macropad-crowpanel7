@@ -109,6 +109,18 @@ int sha256_hex(const void *data, size_t len, char *out, size_t out_cap)
     return 0;
 }
 
+int sha256_digest_hex(const uint8_t dig[32], char *out, size_t out_cap)
+{
+    static const char *hexd = "0123456789abcdef";
+    if (!dig || !out || out_cap < 65) return -1;
+    for (int i = 0; i < 32; i++) {
+        out[i * 2] = hexd[dig[i] >> 4];
+        out[i * 2 + 1] = hexd[dig[i] & 0xf];
+    }
+    out[64] = 0;
+    return 0;
+}
+
 int sha256_hex_eq(const char *hex, const uint8_t dig[32])
 {
     static const char *hexd = "0123456789abcdef";

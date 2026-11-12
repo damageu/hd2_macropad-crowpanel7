@@ -1,13 +1,15 @@
-Link v1.2.3 (incorporated with the v1.2.5 first-install exe; not a release tag)
+Link v1.2.3 (incorporated with the v1.2.6 first-install exe; not a release tag)
 ============================================================
 
 The notes below were written before the hardware run. That run, on Evan's
 board at 460800 with the stub and no ROM fallback, measured a reinstall at
 34.3 s total (write 23.3 s) and a full app-backup run at 93.1 s (read 62.6 s).
 App MD5 b0f9ebf600521d2c1fc9fd884a5e34df. See docs/crowpanel/README.md.
-The Windows exe in this tree is v1.2.5: the v1.2.3 updater, the first-install
+The Windows exe in this tree is v1.2.6: the v1.2.3 updater, the first-install
 window from v1.2.4, and the sound partition at 0xA10000. v1.2.4 did not write
-sounds, so the two builds stay distinguishable.
+sounds. v1.2.5 wrote the sounds into the package but stopped after the 16 MB
+backup because the file was opened write-only. v1.2.6 re-reads that backup
+and continues. The v1.2.5 sidecar hashed the digest instead of encoding it.
 
 Why: v1.2.2 installed correctly on 11 Nov 2026 but took a painfully long
 time. It was ROM-only: the ROM bootloader reads flash in 64-byte chunks,

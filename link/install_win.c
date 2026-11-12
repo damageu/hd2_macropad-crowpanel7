@@ -20,6 +20,7 @@
 #include "link_session.h"
 #include "sha256.h"
 #include "md5.h"
+#include "backup_io.h"
 
 extern const GUID GUID_DEVINTERFACE_COMPORT_LOCAL;
 
@@ -59,13 +60,12 @@ static const wchar_t *EXPLAIN =
     L"Back up and install does four things. It finds the CH340 USB-serial port "
     L"(it does not assume COM5). It reads the entire 16 MB flash to a file on "
     L"this PC before it changes the chip. Baud is 460800. 921600 is never used.\r\n\r\n"
-    L"How long to expect. A full 16 MB first install has not been timed on this "
-    L"board yet. From a measured 2.4 MB read at 460800 (62.6 seconds), the 16 MB "
-    L"backup is the long step and is expected to take about 7 to 10 minutes. "
-    L"Writing and checking the firmware and sounds should then take a few more "
-    L"minutes. The whole first install is often around 10 to 15 minutes. These "
-    L"are expected times, not a stopwatch reading. A slower PC, or a fallback to "
-    L"the slower built-in loader (the log says FALLBACK), can take longer.\r\n\r\n"
+    L"How long to expect. The writes in a full first install have not been timed, "
+    L"because that run stopped after the backup. On the maintainer PC a 16 MB "
+    L"backup at 460800 with the stub took about 6 minutes 40 seconds (400.9 "
+    L"seconds in the installer, 398.7 seconds with esptool). That is the long "
+    L"step. A slower PC, or a fallback to the slower built-in loader (the log "
+    L"says FALLBACK), can take longer.\r\n\r\n"
     L"When to wait. While the phase name, the byte count, or the percent is "
     L"moving, wait. Do not unplug the board and do not close this window, "
     L"especially during a write. Finding the CH340 port and talking to the "
@@ -89,12 +89,8 @@ static const wchar_t *EXPLAIN =
     L"short summary. Drag the log file onto that issue. Do not paste a home-folder path.";
 
 typedef struct {
-    FILE *f;
     wchar_t path[MAX_PATH];
-    sha256_ctx sha;
-    uint32_t got;
-    int have_sha;
-    uint8_t dig[32];
+    hd2_bk io;
 } bk_t;
 
 typedef struct inst_ui inst_ui;
@@ -283,29 +279,27 @@ static int bk_write(void *ctx, uint32_t off, const uint8_t *data, uint32_t n)
     inst_job *job = ctx;
     bk_t *b = &job->bk;
     if (off == 0) {
-        if (b->f) fclose(b->f);
-        b->f = _wfopen(b->path, L"wb");
-        sha256_init(&b->sha);
-        b->got = 0;
-        b->have_sha = 0;
+        FILE *f;
+        if (b->io.f) {
+            fclose(b->io.f);
+            b->io.f = NULL;
+        }
+        /* "wb+" so the head/tail check and a rollback can read the file back.
+         * "wb" is write-only and fread fails after a complete backup. */
+        f = _wfopen(b->path, L"wb+");
+        if (!f || hd2_bk_begin(&b->io, f) != 0) {
+            if (f) fclose(f);
+            hd2_bk_reset(&b->io);
+            return -1;
+        }
     }
-    if (!b->f || off != b->got) return -1;
-    if (fwrite(data, 1, n, b->f) != n || fflush(b->f) != 0) return -1;
-    sha256_update(&b->sha, data, n);
-    b->got += n;
-    return 0;
+    return hd2_bk_write(&b->io, off, data, n);
 }
 
 static int bk_read(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)
 {
     inst_job *job = ctx;
-    bk_t *b = &job->bk;
-    if (!b->f || (uint64_t)off + n > b->got) return -1;
-    if (fflush(b->f) != 0) return -1;
-    if (_fseeki64(b->f, (__int64)off, SEEK_SET) != 0) return -1;
-    if (fread(dst, 1, n, b->f) != n) return -1;
-    if (_fseeki64(b->f, (__int64)b->got, SEEK_SET) != 0) return -1;
-    return 0;
+    return hd2_bk_read(&job->bk.io, off, dst, n);
 }
 
 static void bk_finish(inst_job *job)
@@ -313,21 +307,17 @@ static void bk_finish(inst_job *job)
     bk_t *b = &job->bk;
     wchar_t side[MAX_PATH];
     FILE *sf;
-    char hex[80];
-    if (!b->f) return;
-    if (b->got > 0) {
-        sha256_final(&b->sha, b->dig);
-        b->have_sha = 1;
-    }
-    fclose(b->f);
-    b->f = NULL;
-    if (!b->have_sha) return;
-    sha256_hex(b->dig, 32, hex, sizeof hex);
+    if (!b->io.f && b->io.got == 0) return;
     _snwprintf(side, MAX_PATH, L"%s.sha256", b->path);
     sf = _wfopen(side, L"wb");
-    if (!sf) return;
-    fprintf(sf, "%s  flash-full.bin\n", hex);
-    fclose(sf);
+    if (sf) {
+        hd2_bk_sidecar(&b->io, sf, "flash-full.bin");
+        fclose(sf);
+    }
+    if (b->io.f) {
+        fclose(b->io.f);
+        b->io.f = NULL;
+    }
 }
 
 static void bk_prepare(inst_job *job)
@@ -471,7 +461,7 @@ static void send_log(inst_ui *ui)
     WideCharToMultiByte(CP_UTF8, 0, ui->port, -1, port8, (int)sizeof port8, NULL, NULL);
     snprintf(body, sizeof body,
              "First-install log for checking. No secrets and no home-folder path.\n\n"
-             "Link: 1.2.5 (updater core 1.2.3)\n"
+             "Link: 1.2.6 (updater core 1.2.3)\n"
              "Firmware package: %s\n"
              "Chip: esp32s3\n"
              "Baud cap: 460800 (not 921600)\n"
@@ -556,7 +546,7 @@ static void find_port(inst_ui *ui)
     EnableWindow(GetDlgItem(ui->hwnd, ID_GO), ui->package_ok);
     EnableWindow(GetDlgItem(ui->hwnd, ID_PROBE), TRUE);
     if (ui->package_ok)
-        set_status(ui, L"Port found. The 16 MB backup is the long step: expected about 7 to 10 minutes, then a few more minutes to write and check. The whole first install is often around 10 to 15 minutes. Wait while the count moves. Do not unplug the panel.");
+        set_status(ui, L"Port found. The 16 MB backup is the long step: about 6 minutes 40 seconds on the maintainer PC at 460800. Writing and checking have not been timed yet. Wait while the count moves. Do not unplug the panel.");
     else {
         wchar_t w[300];
         widen(ui->package_err, w, 300);
@@ -592,7 +582,7 @@ static void start_work_async(inst_ui *ui, int do_write, int probe)
     EnableWindow(GetDlgItem(ui->hwnd, ID_PROBE), FALSE);
     EnableWindow(GetDlgItem(ui->hwnd, ID_FIND), FALSE);
     set_status(ui, probe ? L"Checking the connection. Nothing will be written. Finding the port and the bootloader should succeed within about a minute."
-                         : L"Backup: whole 16 MB flash. Expected about 7 to 10 minutes. Writing and checking then take a few more minutes. Wait while the count moves. Do not unplug the panel.");
+                         : L"Backup: whole 16 MB flash. About 6 minutes 40 seconds on the maintainer PC. Wait while the count moves. Do not unplug the panel.");
     w.ui = ui;
     w.do_write = do_write;
     w.probe = probe;
@@ -813,7 +803,7 @@ int link_install_cli(const wchar_t *cmdline)
     }
     link_cli_prepare();
     if (result_file) link_cli_result_open(result_file);
-    link_cli_line("HD2 Macropad Link v1.2.5 first-install");
+    link_cli_line("HD2 Macropad Link v1.2.6 first-install");
     if (bad || (yes && dry)) {
         link_cli_result("RESULT rc=2 error=\"usage: --install [--port COMn] --yes [--dry-run] [--log-stdout] [--rom-only] [--result-file f]. --port may be omitted when exactly one CH340 is connected\"");
         code = 2;

@@ -12,7 +12,9 @@ void sha256_init(sha256_ctx *c);
 void sha256_update(sha256_ctx *c, const void *data, size_t len);
 void sha256_final(sha256_ctx *c, uint8_t out[32]);
 void sha256_buf(const void *data, size_t len, uint8_t out[32]);
-/* 64 hex chars, lowercase, no NUL required in out if out_cap > 64. Returns 0 on success. */
+/* SHA-256 of data, then lowercase hex. 64 hex chars plus NUL. Returns 0 on success. */
 int sha256_hex(const void *data, size_t len, char *out, size_t out_cap);
+/* Lowercase hex of an existing 32-byte digest. Does not hash dig. */
+int sha256_digest_hex(const uint8_t dig[32], char *out, size_t out_cap);
 int sha256_hex_eq(const char *hex, const uint8_t dig[32]);
 #endif

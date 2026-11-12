@@ -34,6 +34,7 @@ taskkill /im HD2MacropadLink-v1.2.2.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.3.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.4.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.5.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.6.exe /f >nul 2>&1
 timeout /t 2 /nobreak >nul
 
 echo.

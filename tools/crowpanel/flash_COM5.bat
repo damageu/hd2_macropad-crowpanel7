@@ -3,7 +3,7 @@ setlocal EnableExtensions
 title HD2 Macropad v1.9.1-cp7.2 - FULL flash (erases presets)
 cd /d "%~dp0"
 rem Advanced recovery. Not the normal first install.
-rem The normal first install is HD2MacropadLink-v1.2.5.exe.
+rem The normal first install is HD2MacropadLink-v1.2.6.exe.
 rem This script always backs up 16 MB first. If that fails, it stops.
 rem It erases the chip only after you type ERASE. There is no skip.
 rem Usage: flash_COM5.bat [COMx] [baud]
@@ -29,7 +29,7 @@ call :findpython
 if errorlevel 1 exit /b 1
 
 echo This is the advanced full-erase path, not the normal first install.
-echo The normal first install is HD2MacropadLink-v1.2.5.exe. It does not mass-erase.
+echo The normal first install is HD2MacropadLink-v1.2.6.exe. It does not mass-erase.
 echo This script will read a 16 MB backup of %PORT% first.
 echo If that backup fails, nothing is erased.
 echo A full erase deletes presets and settings. Connectivity must be set back to USB.
@@ -57,6 +57,7 @@ taskkill /im HD2MacropadLink-v1.2.2.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.3.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.4.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.5.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.6.exe /f >nul 2>&1
 timeout /t 2 /nobreak >nul
 
 echo.
@@ -104,14 +105,17 @@ pause
 exit /b 1
 
 :startlink
-if exist "%~dp0HD2MacropadLink-v1.2.5.exe" (
+if exist "%~dp0HD2MacropadLink-v1.2.6.exe" (
+  echo Starting HD2MacropadLink-v1.2.6.exe ...
+  start "" "%~dp0HD2MacropadLink-v1.2.6.exe"
+) else if exist "%~dp0HD2MacropadLink-v1.2.5.exe" (
   echo Starting HD2MacropadLink-v1.2.5.exe ...
   start "" "%~dp0HD2MacropadLink-v1.2.5.exe"
 ) else if exist "%~dp0HD2MacropadLink-v1.2.4.exe" (
   echo Starting HD2MacropadLink-v1.2.4.exe ...
   start "" "%~dp0HD2MacropadLink-v1.2.4.exe"
 ) else (
-  echo Link exe not next to this script. Start HD2MacropadLink-v1.2.5.exe yourself.
+  echo Link exe not next to this script. Start HD2MacropadLink-v1.2.6.exe yourself.
 )
 exit /b 0
 

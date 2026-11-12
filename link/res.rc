@@ -1,7 +1,7 @@
 1 ICON "app.ico"
 1 VERSIONINFO
-FILEVERSION 1,2,5,0
-PRODUCTVERSION 1,2,5,0
+FILEVERSION 1,2,6,0
+PRODUCTVERSION 1,2,6,0
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
@@ -9,8 +9,8 @@ BEGIN
     BEGIN
       VALUE "FileDescription", "HD2 Macropad Link"
       VALUE "ProductName", "HD2 Macropad Link"
-      VALUE "FileVersion", "1.2.5"
-      VALUE "ProductVersion", "1.2.5"
+      VALUE "FileVersion", "1.2.6"
+      VALUE "ProductVersion", "1.2.6"
       VALUE "Comments", "First-install and app update for CrowPanel Advance 7.0. Updater core 1.2.3. Flash baud at most 460800."
     END
   END

@@ -1,6 +1,6 @@
 # CrowPanel Advance 7.0
 
-This fork runs Erik Lembke's HD2 Macropad on the Elecrow CrowPanel Advance 7.0. The port was written by Evan Ford. Maintenance of this fork is AI-assisted. It is not an official unic8s release.
+This fork runs Erik Lembke's HD2 Macropad on the Elecrow CrowPanel Advance 7.0. The CrowPanel port is AI-assisted. Evan Ford tests it on real hardware. It is not an official unic8s release.
 
 The original project, wiki, and on-device credits stay with Erik Lembke (`unic8s`) and Oliver G. (`@Gore66`):
 
@@ -66,7 +66,7 @@ Sounds live in a read-only FAT partition named `assets` at `0xA10000` (4 MB), be
 
 ## First install (Windows exe)
 
-The primary path is one Windows program: `HD2MacropadLink-v1.2.5.exe`. It is the tray app and the installer. There is no Mac or Linux installer, and there is no second download for Link. It is not a published GitHub Release yet. Build it with `link/BUILD.txt`, or use the exe attached to the pull request that added this installer.
+The primary path is one Windows program: `HD2MacropadLink-v1.2.6.exe`. It is the tray app and the installer. There is no Mac or Linux installer, and there is no second download for Link. It is not a published GitHub Release yet. Build it with `link/BUILD.txt`, or use the exe attached to the pull request that added this installer.
 
 Plug the panel in before you start the exe. **The USB-C cable must carry data as well as power.** A charge-only (power-only) cable will not work. The panel may light up, but Windows will not see the CH340 COM port, and the installer cannot talk to the board. Use a cable you know can transfer files, or one sold as a data cable. If no COM port appears, try another cable and another USB port. The installer finds the CH340 itself. You do not type COM5.
 
@@ -81,17 +81,18 @@ The first window is **Install HD2 Macropad firmware**.
 
 ### How long to wait
 
-A real 16 MB first install has not been timed on this board. Do not treat the ranges below as a stopwatch reading.
+The writes in a full first install have not been timed. On 12 Nov 2026 the run stopped after the backup, with nothing written to the chip.
 
-What was measured, with Link v1.2.3 on this CrowPanel at 460800 and the fast stub, was an app-only job on a board that already had HD2: the 2.4 MB app write took 23.3 seconds, a reinstall took 34.3 seconds in total, and reading that 2.4 MB app region for a backup took 62.6 seconds. That read was not 16 MB. At that rate a 16 MB backup is around 7 minutes.
+What has been measured at 460800 with the fast stub, on the maintainer PC:
 
-Expected times for **Back up and install**:
+- App-only write of the 2.4 MB app: 23.3 seconds. A reinstall of that app took 34.3 seconds in total.
+- Reading that 2.4 MB app region for a backup: 62.6 seconds. That was not a 16 MB read.
+- A 16 MB backup of an HD2 image with esptool: 398.7 seconds.
+- The installer's own 16 MB backup of the Elecrow image: 400.9 seconds, about 6 minutes 40 seconds.
 
-- The 16 MB backup is the long step and typically takes about 7 to 10 minutes.
-- Writing and checking the bootloader, partition table, 2.4 MB app, and 4 MB sounds then takes a few more minutes. Those writes are compressed.
-- The whole first install is often around 10 to 15 minutes.
+The 16 MB backup is the long step. Expect about 6 minutes 40 seconds when the fast stub is running. A slower PC, or a fallback to the ROM loader (the log says `FALLBACK`), can take longer. Do not treat the old 93 second figure as the 16 MB backup time. That figure was the whole app-region backup run, including the 62.6 second read.
 
-A slower PC, or a fallback to the ROM loader (the log says `FALLBACK`), can take longer. If a later run on this hardware times the 16 MB backup or the whole first install, those measured figures replace these estimates.
+v1.2.5 saved this 16 MB file and then stopped with `could not re-read the backup; nothing was written`. The file on disk was complete. The program had opened it write-only, so it could not read the head and tail back, and it correctly refused to program the chip. v1.2.6 opens the backup for reading as well as writing. Its `.sha256` sidecar is the SHA-256 of the file. v1.2.5's sidecar was the SHA-256 of that digest, not of the file.
 
 While the phase name, the byte count, or the percent is moving, wait. Do not unplug the board and do not close the installer, especially during a write.
 
@@ -102,7 +103,7 @@ While the phase name, the byte count, or the percent is moving, wait. Do not unp
 
 It does **not** mass-erase the chip. It does **not** write NVS at `0x9000` (24 KB) or phy_init at `0xF000`. A stock board's NVS is not HD2 presets. Those bytes stay where they are. If a later step fails, the installer writes the backup back over every region it changed, including the sounds, and still does not write NVS. After the board boots, open Config and set Connectivity to USB. The HD2 app itself erases NVS only if `nvs_flash_init` reports no free pages or a new NVS version (`src/configuration.c`). This installer does not do that erase.
 
-The sound image in the exe is the one used for the cp7, cp7.1, and cp7.2 builds (SHA-256 `d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10`). All 20 WAVs match upstream `unic8s/hd2_macropad` `sdcard/assets` at commit `82bba34`. You still need a speaker with a PH2.0-2P plug on the SPK header, DIP S1=0 and S0=0, and mute off, to hear them. v1.2.4 did not write this partition. v1.2.5 does. Do not run Back up and install on a board that already runs HD2.
+The sound image in the exe is the one used for the cp7, cp7.1, and cp7.2 builds (SHA-256 `d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10`). All 20 WAVs match upstream `unic8s/hd2_macropad` `sdcard/assets` at commit `82bba34`. You still need a speaker with a PH2.0-2P plug on the SPK header, DIP S1=0 and S0=0, and mute off, to hear them. v1.2.4 did not write this partition. v1.2.6 does. Do not run Back up and install on a board that already runs HD2.
 
 If the board **already** runs HD2 (cp7, cp7.1, or cp7.2), do not use Back up and install. Use the tray menu **Check for firmware update...** or, until a release exists, **Install local test package...**. That path writes only the app at `0x10000` and leaves NVS, including presets, alone.
 
@@ -113,7 +114,7 @@ Close this exe before a manual esptool run. It holds the COM port. If Windows sa
 ## If the board already runs HD2
 
 1. Quit any older HD2 Macropad Link from the tray. The COM port is exclusive.
-2. Run `HD2MacropadLink-v1.2.5.exe`. It picks the CH340. Unplug other CH340 devices first if more than one is connected.
+2. Run `HD2MacropadLink-v1.2.6.exe`. It picks the CH340. Unplug other CH340 devices first if more than one is connected.
 3. On the macropad, open Config and set Connectivity to USB. The tray icon should say it is connected. The link stays at 115200 baud.
 4. There is still no stable GitHub release. Use **Install local test package...** and open `tools/crowpanel/test-package/crowpanel-update.json`. The window says LOCAL TEST PACKAGE. Press **Update** only when you are not in a mission. **Check board only** restarts the macropad and does not write.
 5. The updater backs up the current app under `%LOCALAPPDATA%\HD2MacropadLink\backups\`, writes the new app at `0x10000` only, checks the flash MD5, and confirms the version after reset. NVS is not written. About should show `v1.9.1-cp7.2`.
@@ -130,9 +131,9 @@ Until that release exists, the check says that no stable package is published. T
 
 The program does not download or start a new copy of itself. Replacing HD2 Macropad Link later means installing a new exe you built or that a release explicitly documents.
 
-## HD2 Macropad Link v1.2.5
+## HD2 Macropad Link v1.2.6
 
-Source and build steps: `link/BUILD.txt`. The updater behaviour is the hardware-tested v1.2.3 core. v1.2.4 added the first-install window without sounds. v1.2.5 is that program plus the sound partition, so the two exes stay distinguishable. Third-party notices: `link/THIRD-PARTY-NOTICES.txt`. The flasher stub is esp-flasher-stub v0.2.0 (Apache-2.0 OR MIT), not esptool's GPL stub.
+Source and build steps: `link/BUILD.txt`. The updater behaviour is the hardware-tested v1.2.3 core. v1.2.4 added the first-install window without sounds. v1.2.6 is that program plus the sound partition, so the two exes stay distinguishable. Third-party notices: `link/THIRD-PARTY-NOTICES.txt`. The flasher stub is esp-flasher-stub v0.2.0 (Apache-2.0 OR MIT), not esptool's GPL stub.
 
 The app finds a CH340 serial port, answers PINGs, and turns keyboard frames into `SendInput` scancodes. It keeps each key down for at least 30 ms and leaves at least 8 ms between events, so a burst after the PC wakes cannot become a zero-length tap. It pings every 500 ms. RTS and DTR stay released so opening the port does not reset the board.
 
@@ -216,7 +217,7 @@ tools/crowpanel/hd2_macropad_v1.9.1-cp7.2_crowpanel_adv7_0x0.bin
 
 ## Manual flash, update, and backup
 
-These scripts are the advanced and recovery path. They are not the normal first install. Use `HD2MacropadLink-v1.2.5.exe` for that. The scripts are Windows only. They call esptool. They do not install Python packages. Install esptool yourself (`python -m pip install esptool`) if `python -m esptool version` fails.
+These scripts are the advanced and recovery path. They are not the normal first install. Use `HD2MacropadLink-v1.2.6.exe` for that. The scripts are Windows only. They call esptool. They do not install Python packages. Install esptool yourself (`python -m pip install esptool`) if `python -m esptool version` fails.
 
 | Script | What it does |
 | --- | --- |
@@ -301,7 +302,7 @@ c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63  SHA-256
 2462928 bytes  tools/crowpanel/test-package/hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin
 ```
 
-`link/res.rc` now says 1.2.5, so a new Link build will not match `28702e8f...` or the earlier v1.2 cross-build.
+`link/res.rc` now says 1.2.6, so a new Link build will not match `28702e8f...` or the earlier v1.2 cross-build.
 
 ## Behaviour carried over from the tested cp7.2 port
 
@@ -321,5 +322,5 @@ Do not tag a release or run `.github/workflows/main.yml` until a stock-board ins
 1. About shows `v1.9.1-cp7.2`, the original credits, and `github.com/unic8s/hd2_macropad`.
 2. The Link tooltip shows the CH340 port, a press works, and the first press after a few minutes idle still works.
 3. Assign a stratagem, including TD-110 Maelstrom, with trigger CTRL and again with ALT.
-4. DIP S1=0, S0=0, PH2.0-2P speaker on SPK, mute off. v1.2.5 writes the sound partition. Hearing it still needs that speaker.
+4. DIP S1=0, S0=0, PH2.0-2P speaker on SPK, mute off. v1.2.6 writes the sound partition. Hearing it still needs that speaker.
 5. Confirm the keymap dropdown highlight.

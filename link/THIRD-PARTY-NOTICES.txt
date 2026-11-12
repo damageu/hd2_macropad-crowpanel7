@@ -1,5 +1,5 @@
 HD2 Macropad Link v1.2.3 - third-party notices
-Also applies to the 1.2.5 exe, which adds the Windows first-install flow
+Also applies to the 1.2.6 exe, which adds the Windows first-install flow
 on this same updater. No new third-party code was added for that flow.
 ==============================================
 

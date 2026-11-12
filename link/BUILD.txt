@@ -1,11 +1,13 @@
-HD2 Macropad Link v1.2.5
+HD2 Macropad Link v1.2.6
 ========================
 
 Windows tray app and first-install program for the CrowPanel Advance 7.0
 USB-serial link. The updater core is v1.2.3 (flasher stub, compressed writes,
 MD5 verify, ROM fallback, headless CLI). v1.2.4 added the stock-board install
-window. v1.2.5 is that program plus the 4 MB sound partition, so the two
-exes stay distinguishable. Protocol UART rate: 115200. The updater's bootloader
+window. v1.2.5 added the 4 MB sound partition. On a real panel it saved the
+16 MB backup and then stopped, because that file was opened write-only.
+v1.2.6 opens it for reading too, so first install continues, and its sidecar
+is the SHA-256 of the file. The two exes stay distinguishable. Protocol UART rate: 115200. The updater's bootloader
 baud is at most 460800 (never 921600: it corrupts on the CrowPanel's CH340K).
 Those are different settings.
 
@@ -21,8 +23,8 @@ Build (llvm-mingw or MinGW-w64, from this directory; build.sh does all of it):
     x86_64-w64-mingw32-gcc -Wall -Wextra -Werror -O2 ^
       -DMINIZ_NO_STDIO -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_TIME -DMINIZ_NO_ZLIB_COMPATIBLE_NAMES ^
       -municode -mwindows ^
-      hd2link.c updater_win.c install_win.c romflash.c update_core.c sha256.c md5.c miniz.o res.o ^
-      -o HD2MacropadLink-v1.2.5.exe -lsetupapi -lwinmm -lwinhttp -lcomdlg32 -lshell32 -static
+      hd2link.c updater_win.c install_win.c romflash.c update_core.c sha256.c md5.c backup_io.c miniz.o res.o ^
+      -o HD2MacropadLink-v1.2.6.exe -lsetupapi -lwinmm -lwinhttp -lcomdlg32 -lshell32 -static
 
 Linux tests (no Windows APIs, no serial hardware):
 
@@ -49,9 +51,9 @@ Regenerating the stub header (only when moving to a newer stub release):
 
     python3 gen_stub.py third_party/esp-flasher-stub/esp32s3.json > stub_esp32s3.h
 
-The Windows program is HD2MacropadLink-v1.2.5.exe. v1.2.5 is the v1.2.3
+The Windows program is HD2MacropadLink-v1.2.6.exe. v1.2.6 is the v1.2.3
 updater plus a first-install window in the same file. The resource version
-is 1.2.5. Link pacing is unchanged: 30 ms hold, 8 ms gap. Flash baud is still
+is 1.2.6. Link pacing is unchanged: 30 ms hold, 8 ms gap. Flash baud is still
 at most 460800.
 
 v1.2.3 updater (fast path):
@@ -82,10 +84,10 @@ Registry switches (HKCU\Software\HD2MacropadLink, REG_DWORD, default 0):
     Log=1         diagnostic link.log (unchanged)
 
 Headless CLI (no dialogs):
-    HD2MacropadLink-v1.2.5.exe --update <crowpanel-update.json> --port COM5 [--reinstall] --yes
+    HD2MacropadLink-v1.2.6.exe --update <crowpanel-update.json> --port COM5 [--reinstall] --yes
         [--log-stdout] [--full-backup] [--rom-only] [--dry-run] [--result-file <path>]
-    HD2MacropadLink-v1.2.5.exe --probe --port COM5 [--log-stdout] [--rom-only] [--result-file <path>]
-    HD2MacropadLink-v1.2.5.exe --install [--port COMn] --yes
+    HD2MacropadLink-v1.2.6.exe --probe --port COM5 [--log-stdout] [--rom-only] [--result-file <path>]
+    HD2MacropadLink-v1.2.6.exe --install [--port COMn] --yes
         [--dry-run] [--log-stdout] [--rom-only] [--result-file <path>]
 Exit codes: 0 ok, 1 failed, 2 usage, 3 port busy or Link running, 4 bad package.
 

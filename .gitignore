@@ -12,4 +12,5 @@ link/*.o
 link/test_core
 link/test_update
 link/test_romflash
+link/test_backup
 link/test_romflash_big

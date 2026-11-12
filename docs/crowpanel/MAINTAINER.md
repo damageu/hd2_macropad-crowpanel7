@@ -36,7 +36,7 @@ The import recorded here started from `689c67b8c2fb7e9082c2c3a04c3452989586edd3`
 - Modifier lead time 80 ms. It applies to whichever trigger mask upstream selects, CTRL or ALT
 - Sounds run on their own task. Input poll 10 ms. Link icon timeout 5 s
 - Assets FAT at `0xA10000`. App-only updates write `0x10000` and do not erase NVS
-- Link v1.2.5 pacing is the v1.1 timing: hold at least 30 ms, gap at least 8 ms, PING every 500 ms. The updater core is v1.2.3 (stub, 460800 max, no 921600, no chip erase). The first-install path reads 16 MB first and writes the bootloader, partition table, app, and assets FAT. It does not write NVS. v1.2.4 did not write assets. App-only updates still write only `0x10000`.
+- Link v1.2.6 pacing is the v1.1 timing: hold at least 30 ms, gap at least 8 ms, PING every 500 ms. The updater core is v1.2.3 (stub, 460800 max, no 921600, no chip erase). The first-install path reads 16 MB first and writes the bootloader, partition table, app, and assets FAT. It does not write NVS. v1.2.4 did not write assets. App-only updates still write only `0x10000`.
 - Flash and backup baud 460800 or lower. Refuse 921600
 - Close the Link app before opening the COM port from esptool
 
@@ -45,7 +45,7 @@ The import recorded here started from `689c67b8c2fb7e9082c2c3a04c3452989586edd3`
 - Keep `LICENSE.md` as CC BY-NC-SA 4.0. Do not replace it with a different licence
 - Keep the About screen credits and the `github.com/unic8s/hd2_macropad` label
 - Keep Erik Lembke named as the original author in the README, with the upstream repository and wiki links
-- Evan Ford is credited for the CrowPanel port. Say that fork maintenance is AI-assisted
+- Evan Ford tests this fork on real hardware. The CrowPanel port and its maintenance are AI-assisted. Do not describe the port as Evan's own firmware authorship
 - Do not add a private email address, a machine name, or a local home-directory path to docs, scripts, or commits
 
 ## Donation audit
