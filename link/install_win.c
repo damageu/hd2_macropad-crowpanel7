@@ -46,6 +46,11 @@ extern const GUID GUID_DEVINTERFACE_COMPORT_LOCAL;
 #define MD5_ASSETS "56ad5746c2f2940c636553dcdcae383e"
 
 static const wchar_t *EXPLAIN =
+    L"The USB-C cable must carry data as well as power. A charge-only "
+    L"(power-only) cable will not work. The panel may light up, but Windows "
+    L"will not see the CH340 COM port, and this installer cannot talk to the "
+    L"board. Use a cable you know can transfer files, or one sold as a data "
+    L"cable. If no port appears, try another cable and another USB port.\r\n\r\n"
     L"Install HD2 Macropad v1.9.1-cp7.2 on an Elecrow CrowPanel Advance 7.0 "
     L"(SKU DIS02170A, ESP32-S3, 16 MB flash, 8 MB PSRAM). Use this for a stock "
     L"Elecrow board, or a board that is not already running this port. A board "
@@ -540,7 +545,7 @@ static void find_port(inst_ui *ui)
     link_resume_after_update();
     ui->port[0] = 0;
     if (!link_pause_for_update(ui->port, 16, err, 300)) {
-        set_status(ui, err[0] ? err : L"No CH340 serial device is connected. Plug the panel's USB-C data cable in. A charge-only cable will not show a COM port.");
+        set_status(ui, err[0] ? err : L"No CH340 serial device is connected. The USB-C cable must carry data, not only power. A charge-only cable can light the panel and still show no COM port. Try a cable known to transfer files, or another USB port.");
         SetWindowTextW(ui->port_lbl, L"Port: none yet");
         EnableWindow(GetDlgItem(ui->hwnd, ID_GO), FALSE);
         EnableWindow(GetDlgItem(ui->hwnd, ID_PROBE), FALSE);
@@ -685,6 +690,7 @@ void link_install_show(HWND owner, int first_run)
     MSG msg;
     const int width = 640, height = 640;
     (void)owner;
+    (void)first_run;
     memset(&ui, 0, sizeof ui);
     ui.package_ok = package_ok(&ui);
     if (!registered) {
@@ -705,9 +711,8 @@ void link_install_show(HWND owner, int first_run)
     SetWindowLongPtrW(w, GWLP_USERDATA, (LONG_PTR)&ui);
     font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     CreateWindowExW(0, L"STATIC",
-                    first_run ? L"First step for a new CrowPanel: back up the factory firmware, install, and verify."
-                              : L"Install firmware on a new CrowPanel. This does not update a pad that already runs HD2.",
-                    WS_CHILD | WS_VISIBLE | SS_LEFT, 16, 10, width - 40, 32, w, NULL, NULL, NULL);
+                    L"Use a USB-C data cable, not charge-only. The panel can light up and still have no COM port.",
+                    WS_CHILD | WS_VISIBLE | SS_LEFT, 16, 10, width - 40, 36, w, NULL, NULL, NULL);
     edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", EXPLAIN,
                            WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL,
                            16, 46, width - 40, 250, w, NULL, NULL, NULL);
@@ -830,7 +835,7 @@ int link_install_cli(const wchar_t *cmdline)
         n = enum_ch340(ports, 8);
         if (n == 1) port = ports[0];
         else if (n == 0) {
-            link_cli_result("RESULT rc=1 error=\"no CH340 serial device is connected. Plug in a data cable. Nothing was written.\"");
+            link_cli_result("RESULT rc=1 error=\"no CH340 serial device is connected. The USB-C cable must carry data, not only power. A charge-only cable can light the panel and still show no COM port. Nothing was written.\"");
             code = 1;
             goto done;
         } else {

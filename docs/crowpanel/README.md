@@ -68,7 +68,9 @@ Sounds live in a read-only FAT partition named `assets` at `0xA10000` (4 MB), be
 
 The primary path is one Windows program: `HD2MacropadLink-v1.2.5.exe`. It is the tray app and the installer. There is no Mac or Linux installer, and there is no second download for Link. It is not a published GitHub Release yet. Build it with `link/BUILD.txt`, or use the exe attached to the pull request that added this installer.
 
-Plug the panel in with a USB-C **data** cable and start the exe. The first window is **Install HD2 Macropad firmware**. It finds the CH340 COM port itself. You do not type COM5.
+Plug the panel in before you start the exe. **The USB-C cable must carry data as well as power.** A charge-only (power-only) cable will not work. The panel may light up, but Windows will not see the CH340 COM port, and the installer cannot talk to the board. Use a cable you know can transfer files, or one sold as a data cable. If no COM port appears, try another cable and another USB port. The installer finds the CH340 itself. You do not type COM5.
+
+The first window is **Install HD2 Macropad firmware**.
 
 **Back up and install** is for a stock Elecrow board, or any board that is not already running this HD2 port. In order:
 
@@ -269,7 +271,7 @@ Do not use the app-only update on a stock image, a wokka1 image, or an upstream 
 
 Use this when the installer cannot find the board, when a progress line has not changed for the times in [How long to wait](#how-long-to-wait), or when the window says the install failed.
 
-- **No COM port.** The USB-C socket is a CH340K (VID `1A86`), not native USB. A charge-only cable often enumerates nothing. Try another cable, and try another USB port on the PC. If Device Manager shows VID `1A86` with no COM port, the CH340 driver is missing. WCH publishes that driver. The installer does not assume COM5.
+- **No COM port / charge-only cable.** The USB-C socket is a CH340K (VID `1A86`), not native USB. The cable must carry data as well as power. A charge-only (power-only) cable will not work: the panel may light up, but Windows will not see a COM port, and the installer cannot talk to the board. Use a cable you know can transfer files, or one sold as a data cable, and try another USB port on the PC. If Device Manager shows VID `1A86` with no COM port, the CH340 driver is missing. WCH publishes that driver. The installer does not assume COM5.
 - **Wrong or missing COM port.** The installer uses whichever CH340 Windows assigned. COM5 is only the maintainer's port. If more than one CH340 is plugged in, unplug the others. The installer will not guess.
 - **Port busy.** Quit HD2 Macropad Link from the tray (right-click the icon, Exit), including an older copy such as v1.2.4, and close any serial monitor or esptool. Exit code 3 means the port is busy or Link is still running.
 - **921600.** Do not use it. It corrupts reads on this CH340K. The installer and the scripts refuse it. Use 460800, or 115200 if that fails.
