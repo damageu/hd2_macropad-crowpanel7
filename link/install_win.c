@@ -53,9 +53,25 @@ static const wchar_t *EXPLAIN =
     L"NVS presets and writes only the app.\r\n\r\n"
     L"Back up and install does four things. It finds the CH340 USB-serial port "
     L"(it does not assume COM5). It reads the entire 16 MB flash to a file on "
-    L"this PC before it changes the chip. That read, and the sound partition "
-    L"written after it, take several minutes. The status line shows how far it "
-    L"has got. Baud is 460800. 921600 is never used.\r\n\r\n"
+    L"this PC before it changes the chip. Baud is 460800. 921600 is never used.\r\n\r\n"
+    L"How long to expect. A full 16 MB first install has not been timed on this "
+    L"board yet. From a measured 2.4 MB read at 460800 (62.6 seconds), the 16 MB "
+    L"backup is the long step and is expected to take about 7 to 10 minutes. "
+    L"Writing and checking the firmware and sounds should then take a few more "
+    L"minutes. The whole first install is often around 10 to 15 minutes. These "
+    L"are expected times, not a stopwatch reading. A slower PC, or a fallback to "
+    L"the slower built-in loader (the log says FALLBACK), can take longer.\r\n\r\n"
+    L"When to wait. While the phase name, the byte count, or the percent is "
+    L"moving, wait. Do not unplug the board and do not close this window, "
+    L"especially during a write. Finding the CH340 port and talking to the "
+    L"bootloader should succeed within about a minute. The 16 MB backup can stay "
+    L"on that line for many minutes, but the byte count must keep increasing. "
+    L"If the same progress line has not changed for 3 minutes during backup, "
+    L"write, or verify, treat it as stuck. This window will say so and point at "
+    L"Send the log for checking. A finished failure is not a hang: the window "
+    L"says it failed. Use Send the log. If a write failed and rollback did not "
+    L"finish, do not keep retrying. Troubleshooting is in "
+    L"docs\\crowpanel\\README.md.\r\n\r\n"
     L"It then writes four regions only: the bootloader at 0x0, the cp7 partition "
     L"table at 0x8000, the app at 0x10000, and the sound FAT at 0xA10000. "
     L"It does not mass-erase the chip. It does not write NVS at 0x9000 or phy_init "
@@ -535,7 +551,7 @@ static void find_port(inst_ui *ui)
     EnableWindow(GetDlgItem(ui->hwnd, ID_GO), ui->package_ok);
     EnableWindow(GetDlgItem(ui->hwnd, ID_PROBE), TRUE);
     if (ui->package_ok)
-        set_status(ui, L"Port found. Back up and install reads all 16 MB first, then writes the app and the sounds. That takes several minutes. Do not unplug the panel.");
+        set_status(ui, L"Port found. The 16 MB backup is the long step: expected about 7 to 10 minutes, then a few more minutes to write and check. The whole first install is often around 10 to 15 minutes. Wait while the count moves. Do not unplug the panel.");
     else {
         wchar_t w[300];
         widen(ui->package_err, w, 300);
@@ -570,19 +586,46 @@ static void start_work_async(inst_ui *ui, int do_write, int probe)
     EnableWindow(GetDlgItem(ui->hwnd, ID_GO), FALSE);
     EnableWindow(GetDlgItem(ui->hwnd, ID_PROBE), FALSE);
     EnableWindow(GetDlgItem(ui->hwnd, ID_FIND), FALSE);
-    set_status(ui, probe ? L"Checking the connection. Nothing will be written."
-                         : L"Reading the whole 16 MB flash before anything is written. That backup, then the sound partition, takes several minutes at 460800. Do not unplug the panel.");
+    set_status(ui, probe ? L"Checking the connection. Nothing will be written. Finding the port and the bootloader should succeed within about a minute."
+                         : L"Backup: whole 16 MB flash. Expected about 7 to 10 minutes. Writing and checking then take a few more minutes. Wait while the count moves. Do not unplug the panel.");
     w.ui = ui;
     w.do_write = do_write;
     w.probe = probe;
     w.rc = -1;
     th = CreateThread(NULL, 0, work_thread, &w, 0, NULL);
-    while (th && WaitForSingleObject(th, 50) == WAIT_TIMEOUT) {
-        while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
-            if (msg.message == WM_COMMAND && LOWORD(msg.wParam) == ID_CLOSE)
-                InterlockedExchange(&ui->cancel, 1);
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
+    {
+        wchar_t seen[384];
+        DWORD since = GetTickCount();
+        int stalled = 0;
+        seen[0] = 0;
+        while (th && WaitForSingleObject(th, 50) == WAIT_TIMEOUT) {
+            wchar_t cur[384];
+            int banner;
+            while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+                if (msg.message == WM_COMMAND && LOWORD(msg.wParam) == ID_CLOSE)
+                    InterlockedExchange(&ui->cancel, 1);
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+            if (!IsWindow(ui->hwnd) || !ui->status) continue;
+            GetWindowTextW(ui->status, cur, 384);
+            banner = wcsncmp(cur, L"This looks stuck.", 16) == 0;
+            if (!banner && wcscmp(cur, seen) != 0) {
+                lstrcpynW(seen, cur, 384);
+                since = GetTickCount();
+                stalled = 0;
+            } else if (!banner && !stalled) {
+                DWORD limit = wcsstr(seen, L"KB") ? 180000u : 60000u;
+                if (GetTickCount() - since >= limit) {
+                    stalled = 1;
+                    set_status(ui, L"This looks stuck. The progress line has not changed (about a minute with no byte count, or 3 minutes during backup, write, or verify). Do not unplug if a write might still be running. Troubleshooting is in docs\\crowpanel\\README.md. Use Send the log for checking. If a write failed and rollback did not finish, do not keep retrying.");
+                    if (ui->job.log_path[0]) {
+                        SetWindowTextW(ui->log_edit, ui->job.log_path);
+                        EnableWindow(GetDlgItem(ui->hwnd, ID_FOLDER), TRUE);
+                        EnableWindow(GetDlgItem(ui->hwnd, ID_SEND), TRUE);
+                    }
+                }
+            }
         }
     }
     if (th) CloseHandle(th);

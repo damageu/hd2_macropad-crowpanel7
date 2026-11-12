@@ -72,10 +72,31 @@ Plug the panel in with a USB-C **data** cable and start the exe. The first windo
 
 **Back up and install** is for a stock Elecrow board, or any board that is not already running this HD2 port. In order:
 
-1. It reads the entire 16 MB flash to `%LOCALAPPDATA%\HD2MacropadLink\backups\flash-full-<timestamp>.bin` before it changes the chip. The 16 MB backup, and the 4 MB sound write after it, take several minutes. The status line shows bytes and percent the whole time. Baud is 460800. 921600 is never used.
+1. It reads the entire 16 MB flash to `%LOCALAPPDATA%\HD2MacropadLink\backups\flash-full-<timestamp>.bin` before it changes the chip. This backup is the long step. Baud is 460800. 921600 is never used. The status line shows bytes and percent the whole time.
 2. It writes four regions only: bootloader at `0x0`, the cp7 partition table at `0x8000`, the `v1.9.1-cp7.2` app at `0x10000`, and the sound FAT at `0xA10000` (4 MB).
 3. It checks each region (MD5 with the flasher stub, or a read-back if the stub had to fall back to the ROM loader). The log says `FALLBACK` when that happens.
 4. It resets the board and reads the app version. Success means that read is `v1.9.1-cp7.2`.
+
+### How long to wait
+
+A real 16 MB first install has not been timed on this board. Do not treat the ranges below as a stopwatch reading.
+
+What was measured, with Link v1.2.3 on this CrowPanel at 460800 and the fast stub, was an app-only job on a board that already had HD2: the 2.4 MB app write took 23.3 seconds, a reinstall took 34.3 seconds in total, and reading that 2.4 MB app region for a backup took 62.6 seconds. That read was not 16 MB. At that rate a 16 MB backup is around 7 minutes.
+
+Expected times for **Back up and install**:
+
+- The 16 MB backup is the long step and typically takes about 7 to 10 minutes.
+- Writing and checking the bootloader, partition table, 2.4 MB app, and 4 MB sounds then takes a few more minutes. Those writes are compressed.
+- The whole first install is often around 10 to 15 minutes.
+
+A slower PC, or a fallback to the ROM loader (the log says `FALLBACK`), can take longer. If a later run on this hardware times the 16 MB backup or the whole first install, those measured figures replace these estimates.
+
+While the phase name, the byte count, or the percent is moving, wait. Do not unplug the board and do not close the installer, especially during a write.
+
+- Finding the CH340 port and talking to the bootloader should succeed within about a minute. If it cannot find a port, or the bootloader attempt count stops, after that minute treat it as a problem: cable, driver, or the port is in use. See Troubleshooting below.
+- The 16 MB backup can stay on that phase for many minutes. The byte count must keep increasing. If the same number or the same progress line has not changed for 3 minutes, treat it as stuck.
+- Write and verify are shorter. The same rule applies: frozen progress for 3 minutes means stuck.
+- A finished failure is not a hang. The window says it failed and offers **Send the log for checking**. Use that. If it failed mid-write and rollback did not finish, do not keep retrying. Send the log.
 
 It does **not** mass-erase the chip. It does **not** write NVS at `0x9000` (24 KB) or phy_init at `0xF000`. A stock board's NVS is not HD2 presets. Those bytes stay where they are. If a later step fails, the installer writes the backup back over every region it changed, including the sounds, and still does not write NVS. After the board boots, open Config and set Connectivity to USB. The HD2 app itself erases NVS only if `nvs_flash_init` reports no free pages or a new NVS version (`src/configuration.c`). This installer does not do that erase.
 
@@ -246,15 +267,18 @@ Do not use the app-only update on a stock image, a wokka1 image, or an upstream 
 
 ## Troubleshooting
 
-- **No COM port.** The USB-C socket is a CH340K (VID `1A86`), not native USB. A charge-only cable often enumerates nothing. Try another cable. If Device Manager shows VID `1A86` with no COM port, the CH340 driver is missing. WCH publishes that driver. The installer does not assume COM5.
-- **More than one CH340.** Unplug the others. The installer will not guess when several are present.
-- **Port busy.** Quit HD2 Macropad Link from the tray and close any serial monitor or esptool. Exit code 3 means the port is busy or Link is still running.
+Use this when the installer cannot find the board, when a progress line has not changed for the times in [How long to wait](#how-long-to-wait), or when the window says the install failed.
+
+- **No COM port.** The USB-C socket is a CH340K (VID `1A86`), not native USB. A charge-only cable often enumerates nothing. Try another cable, and try another USB port on the PC. If Device Manager shows VID `1A86` with no COM port, the CH340 driver is missing. WCH publishes that driver. The installer does not assume COM5.
+- **Wrong or missing COM port.** The installer uses whichever CH340 Windows assigned. COM5 is only the maintainer's port. If more than one CH340 is plugged in, unplug the others. The installer will not guess.
+- **Port busy.** Quit HD2 Macropad Link from the tray (right-click the icon, Exit), including an older copy such as v1.2.4, and close any serial monitor or esptool. Exit code 3 means the port is busy or Link is still running.
 - **921600.** Do not use it. It corrupts reads on this CH340K. The installer and the scripts refuse it. Use 460800, or 115200 if that fails.
 - **First install versus update.** Back up and install is for a stock or wrong layout. It writes the bootloader, partition table, app, and sounds, and it does not write NVS. Do not use it on a board that already runs HD2. Check for firmware update / the local test package is that path. It writes only `0x10000` and keeps presets and the sound partition already on the chip.
-- **Rollback.** If the installer started a write and the check failed, it puts the backup bytes back over the regions it changed and leaves NVS alone. If the screen stays blank, write the full-flash backup at `0x0` as in Recovery. Do not mass-erase to "start clean" unless you already have that backup and you typed `ERASE` in `flash_COM5.bat` on purpose.
-- **Sending a failure log.** In the installer, **Send the log for checking** opens a GitHub issue with a short summary and opens the log folder. Drag the log onto the issue. Do not paste the folder path. It contains your Windows user name.
-- **Windows only.** The one-file installer is a Windows exe. The recovery scripts are Windows batch files. Building the firmware with PlatformIO is separate and is not required to run the exe.
-- **Wrong board.** This firmware is for the CrowPanel Advance 7.0, SKU DIS02170A, 800x480, ESP32-S3, 16 MB flash. It is not for the CrowPanel Basic (4 MB flash) and not for the CrowPanel Advance 7 ESP32-P4 (1024x600).
+- **It looks stuck.** If the byte count or percent is still changing, wait, and do not unplug. If the bootloader line has not moved for about a minute, or a backup, write, or verify line has not changed for 3 minutes, treat it as stuck. Use **Send the log for checking**. Do not start another install on top of a write that did not finish.
+- **Rollback.** If the installer started a write and the check failed, it puts the backup bytes back over the regions it changed, including sounds, and leaves NVS alone. If the window says rollback did not finish, do not keep retrying. Send the log, and keep the `flash-full-*.bin` file. If the screen stays blank, write that backup at `0x0` as in Recovery. Do not mass-erase to "start clean" unless you already have that backup and you typed `ERASE` in `flash_COM5.bat` on purpose.
+- **Sending a failure log.** In the installer, **Send the log for checking** opens a pre-filled GitHub issue on `damageu/hd2_macropad-crowpanel7`. The issue body is a short summary (versions, port, exit code, last error). It also opens the log folder and copies the log path to the clipboard. Drag the `install-*.log` file onto the issue. Do not paste the folder path. It contains your Windows user name.
+- **Windows only.** The one-file installer is a Windows exe. There is no Mac or Linux installer. The recovery scripts are Windows batch files. Building the firmware with PlatformIO is separate and is not required to run the exe.
+- **Wrong board.** This firmware is for the CrowPanel Advance 7.0, SKU DIS02170A, 800x480, ESP32-S3, 16 MB flash. It is not for the CrowPanel Basic (4 MB flash, including the GrowCube listing) and not for the CrowPanel Advance 7 ESP32-P4 (1024x600).
 
 ## Previously tested artifacts
 

@@ -214,31 +214,65 @@ static void ser_sleep(void *ctx, unsigned ms)
 static void ser_progress(void *ctx, const char *phase, unsigned done, unsigned total)
 {
     ser_t *s = ctx;
-    wchar_t msg[200];
+    wchar_t msg[384];
     const wchar_t *label = L"Working";
     const char *cli_label = phase;
     if (strcmp(phase, "sync") == 0) {
-        _snwprintf(msg, 200, L"Waiting for the bootloader, attempt %u of %u. Do not unplug the macropad.",
-                   done, total);
+        if (s->full_chip)
+            _snwprintf(msg, 384,
+                       L"Waiting for the bootloader, attempt %u of %u. This should keep moving, and it should succeed within about a minute. If it stops, check the cable, the CH340 driver, and that no other program has the port.",
+                       done, total);
+        else
+            _snwprintf(msg, 384, L"Waiting for the bootloader, attempt %u of %u. Do not unplug the macropad.",
+                       done, total);
         if (s->status) SetWindowTextW(s->status, msg);
         if (s->cli && strcmp(s->last_phase, "sync") != 0) cli_out("PROGRESS phase=Connect");
         snprintf(s->last_phase, sizeof s->last_phase, "%s", phase);
         return;
     }
     if (strcmp(phase, "backup") == 0) {
-        label = s->full_chip ? L"Backup: reading the whole 16 MB flash to this PC" : L"Backup: saving the current app";
+        label = s->full_chip
+            ? L"Backup: whole 16 MB flash. Expected about 7 to 10 minutes. Wait while the count moves"
+            : L"Backup: saving the current app";
         cli_label = "Backup";
     } else if (strcmp(phase, "write") == 0) { label = L"Write: installing the new app"; cli_label = "Write"; }
-    else if (strcmp(phase, "write-boot") == 0) { label = L"Install: writing the bootloader at 0x0"; cli_label = "WriteBoot"; }
-    else if (strcmp(phase, "write-part") == 0) { label = L"Install: writing the partition table at 0x8000"; cli_label = "WritePart"; }
-    else if (strcmp(phase, "write-app") == 0) { label = L"Install: writing the app at 0x10000"; cli_label = "WriteApp"; }
-    else if (strcmp(phase, "write-assets") == 0) { label = L"Install: writing sounds at 0xA10000"; cli_label = "WriteAssets"; }
+    else if (strcmp(phase, "write-boot") == 0) {
+        label = s->full_chip ? L"Install: bootloader. Expected a few minutes for all writes together. Wait while the count moves" : L"Install: writing the bootloader at 0x0";
+        cli_label = "WriteBoot";
+    }
+    else if (strcmp(phase, "write-part") == 0) {
+        label = s->full_chip ? L"Install: partition table. Expected a few minutes for all writes together. Wait while the count moves" : L"Install: writing the partition table at 0x8000";
+        cli_label = "WritePart";
+    }
+    else if (strcmp(phase, "write-app") == 0) {
+        label = s->full_chip ? L"Install: app. Expected a few minutes for all writes together. Wait while the count moves" : L"Install: writing the app at 0x10000";
+        cli_label = "WriteApp";
+    }
+    else if (strcmp(phase, "write-assets") == 0) {
+        label = s->full_chip ? L"Install: sounds. Expected a few minutes for all writes together. Wait while the count moves" : L"Install: writing sounds at 0xA10000";
+        cli_label = "WriteAssets";
+    }
     else if (strcmp(phase, "verify") == 0) { label = L"Verify: checking the flash MD5"; cli_label = "Verify"; }
-    else if (strcmp(phase, "verify-boot") == 0) { label = L"Verify: bootloader MD5"; cli_label = "VerifyBoot"; }
-    else if (strcmp(phase, "verify-part") == 0) { label = L"Verify: partition table MD5"; cli_label = "VerifyPart"; }
-    else if (strcmp(phase, "verify-app") == 0) { label = L"Verify: app MD5"; cli_label = "VerifyApp"; }
-    else if (strcmp(phase, "verify-assets") == 0) { label = L"Verify: sound partition MD5"; cli_label = "VerifyAssets"; }
-    else if (strcmp(phase, "restore") == 0) { label = L"Rollback: writing the backup back"; cli_label = "Rollback"; }
+    else if (strcmp(phase, "verify-boot") == 0) {
+        label = s->full_chip ? L"Verify: bootloader. Expected a few minutes for the checks. Wait while this moves" : L"Verify: bootloader MD5";
+        cli_label = "VerifyBoot";
+    }
+    else if (strcmp(phase, "verify-part") == 0) {
+        label = s->full_chip ? L"Verify: partition table. Expected a few minutes for the checks. Wait while this moves" : L"Verify: partition table MD5";
+        cli_label = "VerifyPart";
+    }
+    else if (strcmp(phase, "verify-app") == 0) {
+        label = s->full_chip ? L"Verify: app. Expected a few minutes for the checks. Wait while this moves" : L"Verify: app MD5";
+        cli_label = "VerifyApp";
+    }
+    else if (strcmp(phase, "verify-assets") == 0) {
+        label = s->full_chip ? L"Verify: sounds. Expected a few minutes for the checks. Wait while this moves" : L"Verify: sound partition MD5";
+        cli_label = "VerifyAssets";
+    }
+    else if (strcmp(phase, "restore") == 0) {
+        label = s->full_chip ? L"Rollback: writing the backup back. This can take several minutes. Wait while the count moves" : L"Rollback: writing the backup back";
+        cli_label = "Rollback";
+    }
     else if (strcmp(phase, "readback") == 0) { label = L"Verify: reading the new app back"; cli_label = "Verify"; }
     else if (strcmp(phase, "check") == 0) { label = L"Checking the app on the board"; cli_label = "Check"; }
     else if (strcmp(phase, "stub") == 0) { label = L"Loading the fast flasher"; cli_label = "Stub"; }
@@ -246,10 +280,10 @@ static void ser_progress(void *ctx, const char *phase, unsigned done, unsigned t
     else if (strcmp(phase, "confirm") == 0) { label = L"Confirming the version after reset"; cli_label = "Confirm"; }
     if (total > 1) {
         unsigned pct = (unsigned)(((unsigned long long)done * 100u) / total);
-        _snwprintf(msg, 200, L"%s\n%u of %u KB (%u%%). Do not unplug the macropad.",
+        _snwprintf(msg, 384, L"%s\n%u of %u KB (%u%%). Do not unplug the macropad.",
                    label, done / 1024u, total / 1024u, pct);
     } else {
-        _snwprintf(msg, 200, L"%s. Do not unplug the macropad.", label);
+        _snwprintf(msg, 384, L"%s. Do not unplug the macropad.", label);
     }
     if (s->status) SetWindowTextW(s->status, msg);
     if (s->cli) {
