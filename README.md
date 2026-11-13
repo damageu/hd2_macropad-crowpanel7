@@ -5,7 +5,7 @@
 A very flexible and easy-to-use macropad for HELLDIVERS&trade; 2 for live configuration on each drop into combat with individual loadouts.
 
 > [!IMPORTANT]
-> **CrowPanel Advance 7.0 fork.** This is Evan's public fork of [Erik Lembke's HD2 Macropad](https://github.com/unic8s/hd2_macropad) (`unic8s/hd2_macropad`) for the Elecrow CrowPanel Advance 7.0 (DIS02170A). The primary first install is one Windows program, `HD2MacropadLink-v1.2.6.exe`, for firmware `v1.9.1-cp7.2`. Setup, purchase, troubleshooting, flash, update, and recovery: [docs/crowpanel/README.md](docs/crowpanel/README.md). Maintainer checklist: [docs/crowpanel/MAINTAINER.md](docs/crowpanel/MAINTAINER.md).
+> **CrowPanel Advance 7.0 fork.** This is Evan's public fork of [Erik Lembke's HD2 Macropad](https://github.com/unic8s/hd2_macropad) (`unic8s/hd2_macropad`) for the Elecrow CrowPanel Advance 7.0 (DIS02170A). This tree's firmware is `v1.9.2-cp7.2` (Erik's v1.9.2: AMW-20 Apex and LAS-44 Nova). It is not hardware-tested yet. The published release remains `v1.9.1-cp7.2` with `HD2MacropadLink-v1.2.6.exe`. Setup, purchase, troubleshooting, flash, update, and recovery: [docs/crowpanel/README.md](docs/crowpanel/README.md). Maintainer checklist: [docs/crowpanel/MAINTAINER.md](docs/crowpanel/MAINTAINER.md).
 >
 > Buy the **CrowPanel Advance 7.0**, SKU DIS02170A (ESP32-S3, 16 MB flash, 8 MB PSRAM, 800x480). This firmware is not for the CrowPanel Basic, and not for the CrowPanel Advance 7 ESP32-P4. Shop links and the notes on cases are in the CrowPanel guide.
 >

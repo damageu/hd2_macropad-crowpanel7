@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "channel": "test",
-  "version": "v1.9.1-cp7.2",
+  "version": "v1.9.2-cp7.2",
   "product": "hd2-macropad-crowpanel7",
   "chip": "esp32s3",
   "app_offset": 65536,
   "app_slot_end": 10551296,
-  "image_name": "hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin",
-  "image_sha256": "c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63",
-  "image_size": 2462928,
-  "notes": "Local test package for the first hardware run of v1.9.1-cp7.2. This is not a published GitHub release. The board, if it is still on v1.8.6-cp7.2, should show this as an upgrade. Presets are left in NVS. A USB power loss during the write is not an atomic update; the Link app keeps a backup under Local AppData."
+  "image_name": "hd2_macropad_v1.9.2-cp7.2_app_0x10000.bin",
+  "image_sha256": "ed89b7888ab051d6116e1f3abd63120f3055f6d036902c499313379b0e7ecf89",
+  "image_size": 2479520,
+  "notes": "Local test package for v1.9.2-cp7.2. This is not a published GitHub release. Channel is test, so Link will not treat it as stable. A board on v1.9.1-cp7.2 should show this as an upgrade. The write is app-only at 0x10000 and leaves NVS and the sound partition alone. Flash baud is at most 460800. A USB power loss during the write is not an atomic update; Link keeps a backup under Local AppData."
 }

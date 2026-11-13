@@ -24,7 +24,7 @@ The import recorded here started from `689c67b8c2fb7e9082c2c3a04c3452989586edd3`
    - `utils/write-version.py` CrowPanel version override. Do not let a CrowPanel build run `git pull`
    - `link/` and `tools/crowpanel/`
 4. If a conflict cannot be resolved without guessing, stop and write down the overlapping hunks. Do not drop the trigger key, the keymap highlight fix, or the licence text to get a clean apply.
-5. After a sync, set the About version so it cannot be mistaken for an older tested binary. `v1.8.6-cp7.2` is the historical tested build. `v1.9.1-cp7.2` is this rebase. A later upstream tag needs a new label.
+5. After a sync, set the About version so it cannot be mistaken for an older tested binary. `v1.8.6-cp7.2` is the historical tested build. `v1.9.1-cp7.2` is the hardware-tested rebase. `v1.9.2-cp7.2` is the port of upstream v1.9.2 and is not hardware-tested yet. A later upstream tag needs a new label.
 6. Record the new upstream SHA at the bottom of this file in the same commit as the sync.
 
 ## Behaviour that must survive a sync
@@ -69,7 +69,7 @@ The Link app stable channel only accepts a public GitHub release whose tag is `v
 
 The manifest `channel` must be `stable`, and `version` must equal that tag. The image file name is `hd2_macropad_<version>_app_0x10000.bin` in the same release. The manifest cannot set an address, a baud rate, or a command. Do not add those fields. A local file named `crowpanel-update.json` is accepted only when `channel` is `test`, from the separate tray item.
 
-Do not publish a release to exercise the button. The test package under `tools/crowpanel/test-package/` is the unreleased hardware-test path. Rebuild it with `python3 tools/crowpanel/make_test_package.py` after `pio run -e crowpanel-adv7`. The app descriptor version and `SW_VER` are both `v1.9.1-cp7.2` (`-DPROJECT_VER` on the CrowPanel board and `utils/write-version.py`).
+Do not publish a release to exercise the button. The test package under `tools/crowpanel/test-package/` is the unreleased hardware-test path. Rebuild it with `python3 tools/crowpanel/make_test_package.py` after `pio run -e crowpanel-adv7`. The app descriptor version and `SW_VER` are both `v1.9.2-cp7.2` (`-DPROJECT_VER` on the CrowPanel board and `utils/write-version.py`).
 
 ## Release gate
 
@@ -85,6 +85,8 @@ An app-only update is the normal field update when the partition table is unchan
 
 ## Last sync
 
-- Date: 2026-11-06
-- Fork `main` / upstream `main`: `689c67b8c2fb7e9082c2c3a04c3452989586edd3`
-- Historical tested port: upstream `82bba348fc2a2b39182b83ef7b893b1fe5185934` (`v1.8.6`) plus the cp7.2 patches, rebased forward. Not byte-identical to that tested firmware
+- Date: 2026-11-13
+- Upstream tag `v1.9.2`: `7ae81c01b08388a52419cc35e4266517728c7ab0` (AMW-20 Apex and LAS-44 Nova), cherry-picked onto fork `main` `a7d77ea`
+- Previous import base: `689c67b8c2fb7e9082c2c3a04c3452989586edd3`
+- Historical tested port: upstream `82bba348fc2a2b39182b83ef7b893b1fe5185934` (`v1.8.6`) plus the cp7.2 patches. The published CrowPanel release is `v1.9.1-cp7.2`. `v1.9.2-cp7.2` is not published and has not been run on hardware
+- Sound partition unchanged. Both new stratagems use `SND_WEAPON` (`weap.wav`)

@@ -1,5 +1,5 @@
 #!/bin/sh
-# HD2 Macropad Link v1.2.6 build (llvm-mingw or mingw-w64).
+# HD2 Macropad Link v1.2.7 build (llvm-mingw or mingw-w64).
 set -e
 MZ="-DMINIZ_NO_STDIO -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_TIME -DMINIZ_NO_ZLIB_COMPATIBLE_NAMES"
 CC_LINUX=${CC_LINUX:-gcc}
@@ -14,4 +14,4 @@ x86_64-w64-mingw32-windres res.rc -O coff -o res.o
 x86_64-w64-mingw32-gcc -Wall -Wextra -O2 $MZ -c third_party/miniz/miniz.c -o miniz.o
 x86_64-w64-mingw32-gcc -Wall -Wextra -Werror -O2 $MZ -municode -mwindows \
   hd2link.c updater_win.c install_win.c romflash.c update_core.c sha256.c md5.c backup_io.c miniz.o res.o \
-  -o HD2MacropadLink-v1.2.6.exe -lsetupapi -lwinmm -lwinhttp -lcomdlg32 -lshell32 -static
+  -o HD2MacropadLink-v1.2.7.exe -lsetupapi -lwinmm -lwinhttp -lcomdlg32 -lshell32 -static
