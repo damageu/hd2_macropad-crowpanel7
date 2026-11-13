@@ -5,13 +5,13 @@
 A very flexible and easy-to-use macropad for HELLDIVERS&trade; 2 for live configuration on each drop into combat with individual loadouts.
 
 > [!IMPORTANT]
-> **CrowPanel Advance 7.0 fork.** This is Evan Ford's public fork of [Erik Lembke's HD2 Macropad](https://github.com/unic8s/hd2_macropad) (`unic8s/hd2_macropad`) for the Elecrow CrowPanel Advance 7.0 (DIS02170A). The primary first install is one Windows program, `HD2MacropadLink-v1.2.6.exe`, for firmware `v1.9.1-cp7.2`. Setup, purchase, troubleshooting, flash, update, and recovery: [docs/crowpanel/README.md](docs/crowpanel/README.md). Maintainer checklist: [docs/crowpanel/MAINTAINER.md](docs/crowpanel/MAINTAINER.md).
+> **CrowPanel Advance 7.0 fork.** This is Evan's public fork of [Erik Lembke's HD2 Macropad](https://github.com/unic8s/hd2_macropad) (`unic8s/hd2_macropad`) for the Elecrow CrowPanel Advance 7.0 (DIS02170A). The primary first install is one Windows program, `HD2MacropadLink-v1.2.6.exe`, for firmware `v1.9.1-cp7.2`. Setup, purchase, troubleshooting, flash, update, and recovery: [docs/crowpanel/README.md](docs/crowpanel/README.md). Maintainer checklist: [docs/crowpanel/MAINTAINER.md](docs/crowpanel/MAINTAINER.md).
 >
 > Buy the **CrowPanel Advance 7.0**, SKU DIS02170A (ESP32-S3, 16 MB flash, 8 MB PSRAM, 800x480). This firmware is not for the CrowPanel Basic, and not for the CrowPanel Advance 7 ESP32-P4. Shop links and the notes on cases are in the CrowPanel guide.
 >
 > Evan is a beginner at 3D printing and is working on a printable case. He will share it if and when he has it worked out. There is no date, and no shop for it.
 >
-> The CrowPanel port and the notes in this fork are AI-assisted. Evan Ford tests the port on real hardware. This is not an official unic8s release. Erik Lembke remains the original author. The on-device About screen still credits Oliver G. (@Gore66) and Erik L. (@unic8s) and still links to `github.com/unic8s/hd2_macropad`.
+> The CrowPanel port and the notes in this fork are AI-assisted. Evan tests the port on real hardware. This is not an official unic8s release. Erik Lembke remains the original author. The on-device About screen still credits Oliver G. (@Gore66) and Erik L. (@unic8s) and still links to `github.com/unic8s/hd2_macropad`.
 >
 > Licence: [CC BY-NC-SA 4.0](LICENSE.md).
 >

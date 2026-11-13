@@ -6,7 +6,7 @@
  * and sits in the tray. Starts with Windows (toggle in the tray menu).
  *
  * CrowPanel serial companion for Erik Lembke's HD2 Macropad. The firmware port
- * is Evan Ford's. v1.1 holds each key at least 30 ms and leaves 8 ms between events.
+ * is Evan's. v1.1 holds each key at least 30 ms and leaves 8 ms between events.
  * The protocol rate is 115200 baud. That is not the esptool flash baud.
  *
  * Build: see BUILD.txt (MinGW-w64, -municode, -lsetupapi -lwinmm).

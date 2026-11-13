@@ -45,7 +45,7 @@ The import recorded here started from `689c67b8c2fb7e9082c2c3a04c3452989586edd3`
 - Keep `LICENSE.md` as CC BY-NC-SA 4.0. Do not replace it with a different licence
 - Keep the About screen credits and the `github.com/unic8s/hd2_macropad` label
 - Keep Erik Lembke named as the original author in the README, with the upstream repository and wiki links
-- Evan Ford tests this fork on real hardware. The CrowPanel port and its maintenance are AI-assisted. Do not describe the port as Evan's own firmware authorship
+- Evan tests this fork on real hardware. The CrowPanel port and its maintenance are AI-assisted. Do not describe the port as Evan's own firmware authorship
 - Do not add a private email address, a machine name, or a local home-directory path to docs, scripts, or commits
 
 ## Donation audit

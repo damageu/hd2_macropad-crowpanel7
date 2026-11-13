@@ -1,6 +1,6 @@
 # CrowPanel Advance 7.0
 
-This fork runs Erik Lembke's HD2 Macropad on the Elecrow CrowPanel Advance 7.0. The CrowPanel port is AI-assisted. Evan Ford tests it on real hardware. It is not an official unic8s release.
+This fork runs Erik Lembke's HD2 Macropad on the Elecrow CrowPanel Advance 7.0. The CrowPanel port is AI-assisted. Evan tests it on real hardware. It is not an official unic8s release.
 
 The original project, wiki, and on-device credits stay with Erik Lembke (`unic8s`) and Oliver G. (`@Gore66`):
 

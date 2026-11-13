@@ -2,7 +2,7 @@
  * Board support for the Elecrow CrowPanel Advance 7.0 (DIS02170A, ESP32-S3-WROOM-1-N16R8)
  *
  * CrowPanel port is AI-assisted, rebased onto Erik Lembke's HD2 Macropad
- * (https://github.com/unic8s/hd2_macropad). Evan Ford tests it on real hardware.
+ * (https://github.com/unic8s/hd2_macropad). Evan tests it on real hardware.
  * On-device About credits stay with the original authors.
  * Licence: CC BY-NC-SA 4.0.
  *
