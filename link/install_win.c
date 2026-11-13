@@ -39,8 +39,8 @@ extern const GUID GUID_DEVINTERFACE_COMPORT_LOCAL;
 #define ID_APP      103
 #define ID_ASSETS   104
 
-#define FW_VER "v1.9.1-cp7.2"
-#define SHA_APP "c12dd56c41f1b0d531e12e3eceb8930ff6c0ea46f78bfdf23f3e4c706562aa63"
+#define FW_VER "v1.9.2-cp7.2"
+#define SHA_APP "ed89b7888ab051d6116e1f3abd63120f3055f6d036902c499313379b0e7ecf89"
 #define SHA_PART "bdf044742fcec45de4d49e8062eb06096901498831e3641732e9be1ed8cb5a5e"
 #define SHA_BOOT "cdd4216c20e9ec2762286c17899a9fbe064147fbe73cdf24f7c14afd68772bba"
 #define SHA_ASSETS "d4b9bb6a322f6e2480b16544b75971010aa6b7b1445fe67a5fedc6cf3c965c10"
@@ -52,7 +52,7 @@ static const wchar_t *EXPLAIN =
     L"will not see the CH340 COM port, and this installer cannot talk to the "
     L"board. Use a cable you know can transfer files, or one sold as a data "
     L"cable. If no port appears, try another cable and another USB port.\r\n\r\n"
-    L"Install HD2 Macropad v1.9.1-cp7.2 on an Elecrow CrowPanel Advance 7.0 "
+    L"Install HD2 Macropad v1.9.2-cp7.2 on an Elecrow CrowPanel Advance 7.0 "
     L"(SKU DIS02170A, ESP32-S3, 16 MB flash, 8 MB PSRAM). Use this for a stock "
     L"Elecrow board, or a board that is not already running this port. A board "
     L"that already runs HD2 should use Check for firmware update, which keeps "
@@ -461,7 +461,7 @@ static void send_log(inst_ui *ui)
     WideCharToMultiByte(CP_UTF8, 0, ui->port, -1, port8, (int)sizeof port8, NULL, NULL);
     snprintf(body, sizeof body,
              "First-install log for checking. No secrets and no home-folder path.\n\n"
-             "Link: 1.2.6 (updater core 1.2.3)\n"
+             "Link: 1.2.7 (updater core 1.2.3)\n"
              "Firmware package: %s\n"
              "Chip: esp32s3\n"
              "Baud cap: 460800 (not 921600)\n"
@@ -803,7 +803,7 @@ int link_install_cli(const wchar_t *cmdline)
     }
     link_cli_prepare();
     if (result_file) link_cli_result_open(result_file);
-    link_cli_line("HD2 Macropad Link v1.2.6 first-install");
+    link_cli_line("HD2 Macropad Link v1.2.7 first-install");
     if (bad || (yes && dry)) {
         link_cli_result("RESULT rc=2 error=\"usage: --install [--port COMn] --yes [--dry-run] [--log-stdout] [--rom-only] [--result-file f]. --port may be omitted when exactly one CH340 is connected\"");
         code = 2;

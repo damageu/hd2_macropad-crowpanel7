@@ -17,7 +17,7 @@ Commit or build you flashed:
 App-only update or full erase:
 
 **Link app**
-v1.2.6 (first install and tray) or another build:
+v1.2.7 (this tree, firmware v1.9.2-cp7.2) or v1.2.6 (published, firmware v1.9.1-cp7.2):
 
 Was HD2 Macropad Link closed before esptool ran?
 

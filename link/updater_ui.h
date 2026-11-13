@@ -14,7 +14,7 @@ int link_updater_startup_enabled(void);
 int link_updater_cli(const wchar_t *cmdline);
 void link_updater_startup_set(int on);
 
-/* v1.2.6 first-install. link_install_cli returns -1 when --install is absent. */
+/* v1.2.7 first-install. link_install_cli returns -1 when --install is absent. */
 int link_install_cli(const wchar_t *cmdline);
 int link_install_should_prompt(void);
 void link_install_show(HWND owner, int first_run);

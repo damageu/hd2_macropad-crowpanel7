@@ -16,10 +16,10 @@ if not pioenv:
 
 forced = os.environ.get("HD2MP_VERSION")
 if not forced and pioenv == "crowpanel-adv7":
-    # Rebase of the tested cp7.2 port onto upstream v1.9.1 plus the two
-    # commits after that tag. This is not the hardware-tested v1.8.6-cp7.2 binary.
+    # CrowPanel port of upstream v1.9.2 (AMW-20 Apex and LAS-44 Nova).
+    # This is not the hardware-tested v1.9.1-cp7.2 binary.
     # Set HD2MP_VERSION to override. This path does not run `git pull`.
-    forced = "v1.9.1-cp7.2"
+    forced = "v1.9.2-cp7.2"
 
 if forced:
     versionNumber = forced

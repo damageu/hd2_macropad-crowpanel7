@@ -11,7 +11,7 @@ import shutil
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-VERSION = "v1.9.1-cp7.2"
+VERSION = "v1.9.2-cp7.2"
 IMAGE_NAME = f"hd2_macropad_{VERSION}_app_0x10000.bin"
 SRC = ROOT / ".pio" / "build" / "crowpanel-adv7" / "firmware.bin"
 OUT = ROOT / "tools" / "crowpanel" / "test-package"
@@ -48,11 +48,13 @@ def main() -> int:
         "image_sha256": digest,
         "image_size": len(data),
         "notes": (
-            "Local test package for the first hardware run of v1.9.1-cp7.2. "
-            "This is not a published GitHub release. The board, if it is still "
-            "on v1.8.6-cp7.2, should show this as an upgrade. Presets are left "
-            "in NVS. A USB power loss during the write is not an atomic update; "
-            "the Link app keeps a backup under Local AppData."
+            "Local test package for v1.9.2-cp7.2. This is not a published "
+            "GitHub release. Channel is test, so Link will not treat it as "
+            "stable. A board on v1.9.1-cp7.2 should show this as an upgrade. "
+            "The write is app-only at 0x10000 and leaves NVS and the sound "
+            "partition alone. Flash baud is at most 460800. A USB power loss "
+            "during the write is not an atomic update; Link keeps a backup "
+            "under Local AppData."
         ),
     }
     text = json.dumps(manifest, indent=2) + "\n"

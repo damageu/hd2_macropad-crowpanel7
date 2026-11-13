@@ -1,11 +1,11 @@
 @echo off
 setlocal EnableExtensions
-title HD2 Macropad v1.9.1-cp7.2 - app update (NVS presets kept)
+title HD2 Macropad v1.9.2-cp7.2 - app update (NVS presets kept)
 cd /d "%~dp0"
 rem Writes the application only, at 0x10000. Does not erase the chip.
 rem This is the manual form of an app update for a board that already
 rem uses the cp7 partition table. A stock board should use
-rem HD2MacropadLink-v1.2.6.exe instead, which also writes the bootloader,
+rem HD2MacropadLink-v1.2.7.exe instead, which also writes the bootloader,
 rem the partition table, and the sound partition, and does not mass-erase.
 rem Usage: update_COM5.bat [COMx] [baud]
 rem Put the app bin next to this script. Close HD2 Macropad Link first;
@@ -15,7 +15,7 @@ set "PORT=%~1"
 if "%PORT%"=="" set "PORT=COM5"
 set "BAUD=%~2"
 if "%BAUD%"=="" set "BAUD=460800"
-set "BIN=hd2_macropad_v1.9.1-cp7.2_app_0x10000.bin"
+set "BIN=hd2_macropad_v1.9.2-cp7.2_app_0x10000.bin"
 
 call :checkbaud
 if errorlevel 1 exit /b 1
@@ -43,6 +43,7 @@ taskkill /im HD2MacropadLink-v1.2.3.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.4.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.5.exe /f >nul 2>&1
 taskkill /im HD2MacropadLink-v1.2.6.exe /f >nul 2>&1
+taskkill /im HD2MacropadLink-v1.2.7.exe /f >nul 2>&1
 timeout /t 2 /nobreak >nul
 
 echo.
@@ -59,7 +60,7 @@ if errorlevel 1 goto failed
 echo.
 echo ==== UPDATE COMPLETE ====
 echo The board is restarting. Connectivity should still be USB.
-echo About should show v1.9.1-cp7.2 after you build this tree.
+echo About should show v1.9.2-cp7.2 after you build this tree.
 call :startlink
 timeout /t 5
 exit /b 0
@@ -74,7 +75,10 @@ pause
 exit /b 1
 
 :startlink
-if exist "%~dp0HD2MacropadLink-v1.2.6.exe" (
+if exist "%~dp0HD2MacropadLink-v1.2.7.exe" (
+  echo Starting HD2MacropadLink-v1.2.7.exe ...
+  start "" "%~dp0HD2MacropadLink-v1.2.7.exe"
+) else if exist "%~dp0HD2MacropadLink-v1.2.6.exe" (
   echo Starting HD2MacropadLink-v1.2.6.exe ...
   start "" "%~dp0HD2MacropadLink-v1.2.6.exe"
 ) else if exist "%~dp0HD2MacropadLink-v1.2.5.exe" (
@@ -84,7 +88,7 @@ if exist "%~dp0HD2MacropadLink-v1.2.6.exe" (
   echo Starting HD2MacropadLink-v1.2.4.exe ...
   start "" "%~dp0HD2MacropadLink-v1.2.4.exe"
 ) else (
-  echo Link exe not next to this script. Start HD2MacropadLink-v1.2.6.exe yourself.
+  echo Link exe not next to this script. Start HD2MacropadLink-v1.2.7.exe yourself.
 )
 exit /b 0
 
